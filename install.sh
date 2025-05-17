@@ -10,8 +10,17 @@ echo "Waveshare 4.01\" 7-színű e-Paper HAT (F) - 640x400 pixel"
 echo "Raspberry Pi Zero 2W (512MB RAM)"
 echo ""
 
+# Aktuális felhasználó és könyvtár meghatározása
+CURRENT_USER=$(whoami)
+HOME_DIR="/home/$CURRENT_USER"
+APP_DIR="$HOME_DIR/e_paper_calendar"
+
+echo "Telepítés a következő felhasználó könyvtárába: $CURRENT_USER"
+echo "Alkalmazás könyvtár: $APP_DIR"
+echo ""
+
 # Létrehozzuk a telepítési naplófájlt
-LOG_FILE="install_log.txt"
+LOG_FILE="$HOME_DIR/install_log.txt"
 echo "Telepítés indítása: $(date)" > $LOG_FILE
 
 # Függvény a hibák kezelésére
@@ -70,14 +79,13 @@ if ! sudo apt-get install -y wiringpi >> $LOG_FILE 2>&1; then
         else
             success "WiringPi könyvtár telepítése sikeres az alternatív forrásból"
         fi
-        cd -
+        cd - > /dev/null
     fi
 else
     success "WiringPi könyvtár telepítése sikeres"
 fi
 
 # Létrehozunk egy mappát a projektnek
-APP_DIR="/home/pi/e_paper_calendar"
 echo "Alkalmazás könyvtár létrehozása: $APP_DIR"
 mkdir -p $APP_DIR
 cd $APP_DIR
@@ -943,9 +951,13 @@ if __name__ == "__main__":
     main()
 EOF
 
+# Naplófájl előre létrehozása megfelelő jogosultságokkal
+touch $APP_DIR/calendar.log
+chmod 666 $APP_DIR/calendar.log
+
 # Jogosultságok beállítása a futtatható alkalmazáshoz
 chmod +x $APP_DIR/calendar_display.py
-success "Naptár alkalmazás létrehozva"
+success "Naptár alkalmazás létrehozva megfelelő jogosultságokkal"
 
 # Indítóscript létrehozása
 cat > $APP_DIR/start_calendar.sh << 'EOF'
@@ -968,7 +980,7 @@ After=network.target
 
 [Service]
 Type=simple
-User=pi
+User=$CURRENT_USER
 WorkingDirectory=$APP_DIR
 ExecStart=$APP_DIR/start_calendar.sh
 Restart=always
@@ -982,7 +994,12 @@ sudo mv /tmp/e-paper-calendar.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable e-paper-calendar.service
 
-success "Rendszerszolgáltatás létrehozva és engedélyezve"
+success "Rendszerszolgáltatás létrehozva és engedélyezve a helyes felhasználóval"
+
+# Jogosultságok beállítása a teljes alkalmazás könyvtárhoz
+chown -R $CURRENT_USER:$CURRENT_USER $APP_DIR
+chmod -R 755 $APP_DIR
+success "Alkalmazás könyvtár jogosultságok beállítva"
 
 # Összefoglaló
 echo ""
