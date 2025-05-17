@@ -30,6 +30,13 @@ success() {
     echo ""
 }
 
+# Függvény a figyelmeztetések jelzésére
+warning() {
+    echo -e "\e[33mFIGYELMEZTETÉS:\e[0m $1"
+    echo "FIGYELMEZTETÉS: $1" >> $LOG_FILE
+    echo ""
+}
+
 # Rendszer frissítése
 echo "Rendszer frissítése..."
 if ! sudo apt-get update >> $LOG_FILE 2>&1; then
@@ -38,14 +45,35 @@ else
     success "Rendszer frissítése sikeres"
 fi
 
-# Szükséges csomagok telepítése
+# Szükséges csomagok telepítése - WiringPi nélkül
 echo "Szükséges csomagok telepítése..."
-PACKAGES="python3 python3-pip python3-pil python3-numpy git wiringpi libopenjp2-7 libatlas-base-dev python3-venv libxml2-dev libxslt1-dev"
+PACKAGES="python3 python3-pip python3-pil python3-numpy git libopenjp2-7 libatlas-base-dev python3-venv libxml2-dev libxslt1-dev"
 
 if ! sudo apt-get install -y $PACKAGES >> $LOG_FILE 2>&1; then
     handle_error "Nem sikerült telepíteni az összes szükséges csomagot" "Próbálja telepíteni egyesével a csomagokat, vagy ellenőrizze a $LOG_FILE fájlt a részletekért"
 else
     success "Szükséges csomagok telepítése sikeres"
+fi
+
+# WiringPi alternatív telepítési kísérlet
+echo "WiringPi könyvtár telepítése alternatív forrásból..."
+if ! sudo apt-get install -y wiringpi >> $LOG_FILE 2>&1; then
+    warning "A WiringPi csomag nem telepíthető az alapértelmezett forrásból. Alternatív megoldás kipróbálása..."
+    
+    # Gordon Henderson WiringPi fork-ja
+    if ! git clone https://github.com/WiringPi/WiringPi.git /tmp/WiringPi >> $LOG_FILE 2>&1; then
+        warning "A WiringPi könyvtár klónozása sikertelen. Folytatás WiringPi nélkül..."
+    else
+        cd /tmp/WiringPi
+        if ! ./build >> $LOG_FILE 2>&1; then
+            warning "A WiringPi könyvtár fordítása sikertelen. Folytatás WiringPi nélkül..."
+        else
+            success "WiringPi könyvtár telepítése sikeres az alternatív forrásból"
+        fi
+        cd -
+    fi
+else
+    success "WiringPi könyvtár telepítése sikeres"
 fi
 
 # Létrehozunk egy mappát a projektnek
