@@ -11,13 +11,28 @@ echo "Raspberry Pi Zero 2W (512MB RAM)"
 echo ""
 
 # Aktuális felhasználó és könyvtár meghatározása
-CURRENT_USER=$(whoami)
+# Ha sudo-val fut, a SUDO_USER változó tartalmazza az eredeti felhasználót
+if [ -n "$SUDO_USER" ]; then
+    CURRENT_USER=$SUDO_USER
+else
+    CURRENT_USER=$(logname || whoami)
+fi
+
+# Telepítési könyvtár meghatározása
 HOME_DIR="/home/$CURRENT_USER"
 APP_DIR="$HOME_DIR/e_paper_calendar"
 
 echo "Telepítés a következő felhasználó könyvtárába: $CURRENT_USER"
 echo "Alkalmazás könyvtár: $APP_DIR"
 echo ""
+
+# Megerősítés kérése
+echo "Biztosan ezt a könyvtárat szeretné használni? (i/n)"
+read -r confirm
+if [ "$confirm" != "i" ] && [ "$confirm" != "I" ]; then
+    echo "Telepítés megszakítva a felhasználó kérésére."
+    exit 0
+fi
 
 # Létrehozzuk a telepítési naplófájlt
 LOG_FILE="$HOME_DIR/install_log.txt"
@@ -88,11 +103,12 @@ fi
 # Létrehozunk egy mappát a projektnek
 echo "Alkalmazás könyvtár létrehozása: $APP_DIR"
 mkdir -p $APP_DIR
+sudo chown $CURRENT_USER:$CURRENT_USER $APP_DIR
 cd $APP_DIR
 
 # Virtuális környezet létrehozása
 echo "Python virtuális környezet létrehozása..."
-if ! python3 -m venv venv >> $LOG_FILE 2>&1; then
+if ! sudo -u $CURRENT_USER python3 -m venv venv >> $LOG_FILE 2>&1; then
     handle_error "A virtuális környezet létrehozása sikertelen" "Telepítse újra a python3-venv csomagot: sudo apt-get install python3-venv"
     
     # Alternatív megoldás: használjuk a virtuális környezet nélküli telepítést
@@ -107,23 +123,28 @@ fi
 echo "Python függőségek telepítése..."
 
 if [ $USE_VENV -eq 1 ]; then
-    source venv/bin/activate
-    PIP_COMMAND="pip3"
+    sudo -u $CURRENT_USER bash -c "cd $APP_DIR && source venv/bin/activate && pip3 install $PIP_PACKAGES" >> $LOG_FILE 2>&1
+    PIP_SUCCESS=$?
 else
-    PIP_COMMAND="sudo pip3"
+    sudo pip3 install $PIP_PACKAGES >> $LOG_FILE 2>&1
+    PIP_SUCCESS=$?
 fi
 
 # Szükséges Python csomagok listája
 PIP_PACKAGES="RPi.GPIO spidev pytz requests ephem feedparser holidays python-dateutil pillow"
 
-if ! $PIP_COMMAND install $PIP_PACKAGES >> $LOG_FILE 2>&1; then
+if [ $PIP_SUCCESS -ne 0 ]; then
     handle_error "Python csomagok telepítése sikertelen" "Próbálja telepíteni a csomagokat egyesével, vagy ellenőrizze a $LOG_FILE fájlt a részletekért"
     
     # Egyesével próbáljuk telepíteni a csomagokat
     echo "Próbálkozás a csomagok egyesével történő telepítésével..."
     for package in $PIP_PACKAGES; do
         echo "Telepítés: $package"
-        $PIP_COMMAND install $package >> $LOG_FILE 2>&1
+        if [ $USE_VENV -eq 1 ]; then
+            sudo -u $CURRENT_USER bash -c "cd $APP_DIR && source venv/bin/activate && pip3 install $package" >> $LOG_FILE 2>&1
+        else
+            sudo pip3 install $package >> $LOG_FILE 2>&1
+        fi
     done
 else
     success "Python függőségek telepítése sikeres"
@@ -133,16 +154,16 @@ fi
 echo "Waveshare e-Paper könyvtár telepítése..."
 
 # Először próbáljuk a hivatalos GitHub repóból
-if ! git clone https://github.com/waveshare/e-Paper.git >> $LOG_FILE 2>&1; then
+if ! sudo -u $CURRENT_USER git clone https://github.com/waveshare/e-Paper.git >> $LOG_FILE 2>&1; then
     handle_error "A Waveshare e-Paper könyvtár klónozása sikertelen" "Ellenőrizze az internetkapcsolatot vagy próbálja meg letölteni a forrást közvetlenül a Waveshare oldaláról"
     
     # Alternatív útvonal: letöltés a Waveshare oldaláról
     echo "Alternatív telepítés próbálása a Waveshare oldaláról..."
-    if ! wget -O e-Paper.zip https://www.waveshare.com/w/upload/1/18/E-Paper_code.zip >> $LOG_FILE 2>&1; then
+    if ! sudo -u $CURRENT_USER wget -O e-Paper.zip https://www.waveshare.com/w/upload/1/18/E-Paper_code.zip >> $LOG_FILE 2>&1; then
         handle_error "A Waveshare e-Paper könyvtár letöltése alternatív úton is sikertelen" "Ellenőrizze a webhely elérhetőségét vagy töltse le manuálisan"
     else
-        unzip e-Paper.zip -d e-Paper >> $LOG_FILE 2>&1
-        rm e-Paper.zip
+        sudo -u $CURRENT_USER unzip e-Paper.zip -d e-Paper >> $LOG_FILE 2>&1
+        sudo -u $CURRENT_USER rm e-Paper.zip
         success "Waveshare e-Paper könyvtár letöltése sikeres az alternatív úton"
     fi
 else
@@ -150,22 +171,22 @@ else
 fi
 
 # Telepítsük a Waveshare Python példákat
-if [ -d "e-Paper/RaspberryPi_JetsonNano/python/lib/waveshare_epd" ]; then
+if [ -d "$APP_DIR/e-Paper/RaspberryPi_JetsonNano/python/lib/waveshare_epd" ]; then
     echo "Waveshare e-Paper Python könyvtár másolása..."
-    mkdir -p $APP_DIR/lib
-    cp -r e-Paper/RaspberryPi_JetsonNano/python/lib/waveshare_epd $APP_DIR/lib/
+    sudo -u $CURRENT_USER mkdir -p $APP_DIR/lib
+    sudo -u $CURRENT_USER cp -r $APP_DIR/e-Paper/RaspberryPi_JetsonNano/python/lib/waveshare_epd $APP_DIR/lib/
     success "Waveshare e-Paper Python könyvtár telepítése sikeres"
 else
     handle_error "Nem található a Waveshare e-Paper Python könyvtár" "Ellenőrizze a letöltött e-Paper könyvtár struktúráját, a mappák elnevezése változhatott"
     
     # Keressük meg a könyvtárat az e-Paper mappában
     echo "A waveshare_epd könyvtár keresése..."
-    FOUND_DIR=$(find e-Paper -name "waveshare_epd" -type d | head -n 1)
+    FOUND_DIR=$(find $APP_DIR/e-Paper -name "waveshare_epd" -type d | head -n 1)
     
     if [ -n "$FOUND_DIR" ]; then
         echo "waveshare_epd könyvtár megtalálva: $FOUND_DIR"
-        mkdir -p $APP_DIR/lib
-        cp -r $FOUND_DIR $APP_DIR/lib/
+        sudo -u $CURRENT_USER mkdir -p $APP_DIR/lib
+        sudo -u $CURRENT_USER cp -r $FOUND_DIR $APP_DIR/lib/
         success "Waveshare e-Paper Python könyvtár telepítése sikeres alternatív helyről"
     else
         handle_error "A waveshare_epd könyvtár nem található a letöltött archívumban" "Töltse le manuálisan a könyvtárat, vagy ellenőrizze a megfelelő API elérhetőségét"
@@ -187,7 +208,7 @@ fi
 echo "Naptár alkalmazás létrehozása..."
 
 # Alkalmazás forráskód
-cat > $APP_DIR/calendar_display.py << 'EOF'
+sudo -u $CURRENT_USER bash -c "cat > $APP_DIR/calendar_display.py" << 'EOF'
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
@@ -952,7 +973,7 @@ if __name__ == "__main__":
 EOF
 
 # Naplófájl előre létrehozása megfelelő jogosultságokkal
-touch $APP_DIR/calendar.log
+sudo -u $CURRENT_USER touch $APP_DIR/calendar.log
 chmod 666 $APP_DIR/calendar.log
 
 # Jogosultságok beállítása a futtatható alkalmazáshoz
@@ -960,7 +981,7 @@ chmod +x $APP_DIR/calendar_display.py
 success "Naptár alkalmazás létrehozva megfelelő jogosultságokkal"
 
 # Indítóscript létrehozása
-cat > $APP_DIR/start_calendar.sh << 'EOF'
+sudo -u $CURRENT_USER bash -c "cat > $APP_DIR/start_calendar.sh" << 'EOF'
 #!/bin/bash
 cd "$(dirname "$0")"
 if [ -d "venv" ]; then
@@ -997,7 +1018,7 @@ sudo systemctl enable e-paper-calendar.service
 success "Rendszerszolgáltatás létrehozva és engedélyezve a helyes felhasználóval"
 
 # Jogosultságok beállítása a teljes alkalmazás könyvtárhoz
-chown -R $CURRENT_USER:$CURRENT_USER $APP_DIR
+sudo chown -R $CURRENT_USER:$CURRENT_USER $APP_DIR
 chmod -R 755 $APP_DIR
 success "Alkalmazás könyvtár jogosultságok beállítva"
 
