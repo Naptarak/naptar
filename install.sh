@@ -1,13 +1,21 @@
 #!/bin/bash
 
-# e-Paper Calendar Installer Script
-# For Raspberry Pi Zero 2W with Waveshare 4.01 inch 7-color e-Paper HAT
+# e-Paper Calendar Installer Script - Javított verzió
+# For Raspberry Pi Zero 2W with Waveshare 4.01 inch 7-color e-Paper HAT (F) - 640x400 pixel
 
-echo "==========================================="
-echo "E-Paper Calendar Display - Telepítő Script"
-echo "==========================================="
-echo "Waveshare 4.01\" 7-színű e-Paper HAT (F) - 640x400 pixel"
-echo "Raspberry Pi Zero 2W (512MB RAM)"
+# Színek a kimenethez
+RED="\033[1;31m"
+GREEN="\033[1;32m"
+YELLOW="\033[1;33m"
+BLUE="\033[1;34m"
+BOLD="\033[1m"
+RESET="\033[0m"
+
+echo -e "${BLUE}==========================================${RESET}"
+echo -e "${BOLD}E-Paper Calendar Display - Telepítő Script${RESET}"
+echo -e "${BLUE}==========================================${RESET}"
+echo -e "${BOLD}Waveshare 4.01\" 7-színű e-Paper HAT (F) - 640x400 pixel${RESET}"
+echo -e "${BOLD}Raspberry Pi Zero 2W (512MB RAM)${RESET}"
 echo ""
 
 # Aktuális felhasználó és könyvtár meghatározása
@@ -22,15 +30,15 @@ fi
 HOME_DIR="/home/$CURRENT_USER"
 APP_DIR="$HOME_DIR/e_paper_calendar"
 
-echo "Telepítés a következő felhasználó könyvtárába: $CURRENT_USER"
-echo "Alkalmazás könyvtár: $APP_DIR"
+echo -e "${BOLD}Telepítés a következő felhasználó könyvtárába:${RESET} $CURRENT_USER"
+echo -e "${BOLD}Alkalmazás könyvtár:${RESET} $APP_DIR"
 echo ""
 
 # Megerősítés kérése
-echo "Biztosan ezt a könyvtárat szeretné használni? (i/n)"
+echo -e "${YELLOW}Biztosan ezt a könyvtárat szeretné használni? (i/n)${RESET}"
 read -r confirm
 if [ "$confirm" != "i" ] && [ "$confirm" != "I" ]; then
-    echo "Telepítés megszakítva a felhasználó kérésére."
+    echo -e "${RED}Telepítés megszakítva a felhasználó kérésére.${RESET}"
     exit 0
 fi
 
@@ -40,47 +48,85 @@ echo "Telepítés indítása: $(date)" > $LOG_FILE
 
 # Függvény a hibák kezelésére
 handle_error() {
-    echo -e "\e[31mHIBA:\e[0m $1"
+    echo -e "${RED}HIBA:${RESET} $1"
     echo "HIBA: $1" >> $LOG_FILE
-    echo "Próbálja meg a következőt: $2"
+    echo -e "${YELLOW}Próbálja meg a következőt:${RESET} $2"
     echo "Javasolt megoldás: $2" >> $LOG_FILE
     echo ""
 }
 
 # Függvény a sikeres műveletek jelzésére
 success() {
-    echo -e "\e[32mSIKER:\e[0m $1"
+    echo -e "${GREEN}SIKER:${RESET} $1"
     echo "SIKER: $1" >> $LOG_FILE
     echo ""
 }
 
 # Függvény a figyelmeztetések jelzésére
 warning() {
-    echo -e "\e[33mFIGYELMEZTETÉS:\e[0m $1"
+    echo -e "${YELLOW}FIGYELMEZTETÉS:${RESET} $1"
     echo "FIGYELMEZTETÉS: $1" >> $LOG_FILE
     echo ""
 }
 
+# Függvény a csomag telepítésének ellenőrzésére
+check_package() {
+    pkg_name=$1
+    if ! dpkg -l | grep -q "ii  $pkg_name "; then
+        echo -e "${YELLOW}A $pkg_name csomag telepítése szükséges.${RESET}"
+        return 1
+    else
+        echo -e "${GREEN}A $pkg_name csomag már telepítve van.${RESET}"
+        return 0
+    fi
+}
+
 # Rendszer frissítése
-echo "Rendszer frissítése..."
+echo -e "${BOLD}Rendszer frissítése...${RESET}"
 if ! sudo apt-get update >> $LOG_FILE 2>&1; then
     handle_error "A rendszer frissítése sikertelen" "Ellenőrizze az internetkapcsolatot és próbálja újra: sudo apt-get update"
 else
     success "Rendszer frissítése sikeres"
 fi
 
-# Szükséges csomagok telepítése - WiringPi nélkül
-echo "Szükséges csomagok telepítése..."
-PACKAGES="python3 python3-pip python3-pil python3-numpy git libopenjp2-7 libatlas-base-dev python3-venv libxml2-dev libxslt1-dev"
+# Szükséges csomagok telepítése
+echo -e "${BOLD}Szükséges csomagok telepítése...${RESET}"
+PACKAGES="python3 python3-pip python3-pil python3-numpy git libopenjp2-7 libatlas-base-dev python3-venv libxml2-dev libxslt1-dev python3-gpiozero python3-rpi.gpio python3-spidev"
 
-if ! sudo apt-get install -y $PACKAGES >> $LOG_FILE 2>&1; then
-    handle_error "Nem sikerült telepíteni az összes szükséges csomagot" "Próbálja telepíteni egyesével a csomagokat, vagy ellenőrizze a $LOG_FILE fájlt a részletekért"
+# Ellenőrizzük, hogy mely csomagokat kell telepíteni
+echo "Meglévő csomagok ellenőrzése..."
+PACKAGES_TO_INSTALL=""
+for pkg in $PACKAGES; do
+    if ! check_package $pkg; then
+        PACKAGES_TO_INSTALL="$PACKAGES_TO_INSTALL $pkg"
+    fi
+done
+
+# Telepítjük a hiányzó csomagokat
+if [ -n "$PACKAGES_TO_INSTALL" ]; then
+    echo -e "${BOLD}Hiányzó csomagok telepítése:${RESET}$PACKAGES_TO_INSTALL"
+    if ! sudo apt-get install -y $PACKAGES_TO_INSTALL >> $LOG_FILE 2>&1; then
+        handle_error "Nem sikerült telepíteni az összes szükséges csomagot" "Próbálja telepíteni egyesével a csomagokat, vagy ellenőrizze a $LOG_FILE fájlt a részletekért"
+        
+        # Egyesével próbáljuk telepíteni a csomagokat
+        echo "Próbálkozás a csomagok egyesével történő telepítésével..."
+        for pkg in $PACKAGES_TO_INSTALL; do
+            echo "Telepítés: $pkg"
+            if ! sudo apt-get install -y $pkg >> $LOG_FILE 2>&1; then
+                warning "Nem sikerült telepíteni: $pkg"
+            else
+                success "Telepítve: $pkg"
+            fi
+        done
+    else
+        success "Hiányzó csomagok telepítése sikeres"
+    fi
 else
-    success "Szükséges csomagok telepítése sikeres"
+    success "Minden szükséges csomag már telepítve van"
 fi
 
 # WiringPi alternatív telepítési kísérlet
-echo "WiringPi könyvtár telepítése alternatív forrásból..."
+echo -e "${BOLD}WiringPi könyvtár telepítése alternatív forrásból...${RESET}"
 if ! sudo apt-get install -y wiringpi >> $LOG_FILE 2>&1; then
     warning "A WiringPi csomag nem telepíthető az alapértelmezett forrásból. Alternatív megoldás kipróbálása..."
     
@@ -100,14 +146,38 @@ else
     success "WiringPi könyvtár telepítése sikeres"
 fi
 
+# Ellenőrizzük és engedélyezzük az SPI interfészt
+echo -e "${BOLD}SPI interfész ellenőrzése és engedélyezése...${RESET}"
+if ! grep -q "dtparam=spi=on" /boot/config.txt; then
+    echo "dtparam=spi=on" | sudo tee -a /boot/config.txt >> $LOG_FILE 2>&1
+    REBOOT_NEEDED=1
+    success "SPI interfész engedélyezve (újraindítás szükséges)"
+else
+    success "SPI interfész már engedélyezve van"
+    REBOOT_NEEDED=0
+fi
+
+# Felhasználó hozzáadása a szükséges csoportokhoz
+echo -e "${BOLD}Felhasználói csoportok beállítása...${RESET}"
+for group in spi gpio; do
+    if ! id -nG $CURRENT_USER | grep -qw "$group"; then
+        echo "Felhasználó hozzáadása a $group csoporthoz..."
+        sudo usermod -a -G $group $CURRENT_USER
+        success "Felhasználó hozzáadva a $group csoporthoz"
+        REBOOT_NEEDED=1
+    else
+        success "Felhasználó már tagja a $group csoportnak"
+    fi
+done
+
 # Létrehozunk egy mappát a projektnek
-echo "Alkalmazás könyvtár létrehozása: $APP_DIR"
+echo -e "${BOLD}Alkalmazás könyvtár létrehozása:${RESET} $APP_DIR"
 mkdir -p $APP_DIR
 sudo chown $CURRENT_USER:$CURRENT_USER $APP_DIR
 cd $APP_DIR
 
 # Virtuális környezet létrehozása
-echo "Python virtuális környezet létrehozása..."
+echo -e "${BOLD}Python virtuális környezet létrehozása...${RESET}"
 if ! sudo -u $CURRENT_USER python3 -m venv venv >> $LOG_FILE 2>&1; then
     handle_error "A virtuális környezet létrehozása sikertelen" "Telepítse újra a python3-venv csomagot: sudo apt-get install python3-venv"
     
@@ -120,18 +190,22 @@ else
 fi
 
 # Python csomagok telepítése
-echo "Python függőségek telepítése..."
-
-if [ $USE_VENV -eq 1 ]; then
-    sudo -u $CURRENT_USER bash -c "cd $APP_DIR && source venv/bin/activate && pip3 install $PIP_PACKAGES" >> $LOG_FILE 2>&1
-    PIP_SUCCESS=$?
-else
-    sudo pip3 install $PIP_PACKAGES >> $LOG_FILE 2>&1
-    PIP_SUCCESS=$?
-fi
+echo -e "${BOLD}Python függőségek telepítése...${RESET}"
 
 # Szükséges Python csomagok listája
-PIP_PACKAGES="RPi.GPIO spidev pytz requests ephem feedparser holidays python-dateutil pillow"
+PIP_PACKAGES="RPi.GPIO spidev pytz requests ephem feedparser holidays python-dateutil pillow gpiozero"
+
+if [ $USE_VENV -eq 1 ]; then
+    # Virtuális környezetbe telepítés
+    echo "Virtuális környezetbe telepítés..."
+    sudo -u $CURRENT_USER bash -c "cd $APP_DIR && source venv/bin/activate && pip install --upgrade $PIP_PACKAGES" >> $LOG_FILE 2>&1
+    PIP_SUCCESS=$?
+else
+    # Rendszerszintű telepítés
+    echo "Rendszerszintű telepítés..."
+    sudo pip3 install --upgrade $PIP_PACKAGES >> $LOG_FILE 2>&1
+    PIP_SUCCESS=$?
+fi
 
 if [ $PIP_SUCCESS -ne 0 ]; then
     handle_error "Python csomagok telepítése sikertelen" "Próbálja telepíteni a csomagokat egyesével, vagy ellenőrizze a $LOG_FILE fájlt a részletekért"
@@ -141,9 +215,15 @@ if [ $PIP_SUCCESS -ne 0 ]; then
     for package in $PIP_PACKAGES; do
         echo "Telepítés: $package"
         if [ $USE_VENV -eq 1 ]; then
-            sudo -u $CURRENT_USER bash -c "cd $APP_DIR && source venv/bin/activate && pip3 install $package" >> $LOG_FILE 2>&1
+            sudo -u $CURRENT_USER bash -c "cd $APP_DIR && source venv/bin/activate && pip install $package" >> $LOG_FILE 2>&1
         else
             sudo pip3 install $package >> $LOG_FILE 2>&1
+        fi
+        
+        if [ $? -eq 0 ]; then
+            success "Csomag telepítve: $package"
+        else
+            warning "Nem sikerült telepíteni: $package"
         fi
     done
 else
@@ -151,7 +231,7 @@ else
 fi
 
 # Waveshare e-Paper könyvtár telepítése
-echo "Waveshare e-Paper könyvtár telepítése..."
+echo -e "${BOLD}Waveshare e-Paper könyvtár telepítése...${RESET}"
 
 # Először próbáljuk a hivatalos GitHub repóból
 if ! sudo -u $CURRENT_USER git clone https://github.com/waveshare/e-Paper.git >> $LOG_FILE 2>&1; then
@@ -170,42 +250,69 @@ else
     success "Waveshare e-Paper könyvtár klónozása sikeres"
 fi
 
+# Ellenőrizzük a Waveshare könyvtár tartalmát
+echo -e "${BOLD}Waveshare könyvtár ellenőrzése...${RESET}"
+
 # Telepítsük a Waveshare Python példákat
 if [ -d "$APP_DIR/e-Paper/RaspberryPi_JetsonNano/python/lib/waveshare_epd" ]; then
     echo "Waveshare e-Paper Python könyvtár másolása..."
     sudo -u $CURRENT_USER mkdir -p $APP_DIR/lib
     sudo -u $CURRENT_USER cp -r $APP_DIR/e-Paper/RaspberryPi_JetsonNano/python/lib/waveshare_epd $APP_DIR/lib/
-    success "Waveshare e-Paper Python könyvtár telepítése sikeres"
+    
+    # Ellenőrizzük, hogy a szükséges fájl létezik-e
+    if [ -f "$APP_DIR/lib/waveshare_epd/epd4in01f.py" ]; then
+        success "Waveshare e-Paper Python könyvtár telepítése sikeres"
+    else
+        warning "A szükséges epd4in01f.py fájl nem található. Keresés folytatása..."
+        EPAPER_FILES=$(find $APP_DIR/e-Paper -name "epd4in01f.py" 2>/dev/null)
+        
+        if [ -n "$EPAPER_FILES" ]; then
+            FIRST_FILE=$(echo "$EPAPER_FILES" | head -n 1)
+            DRIVER_DIR=$(dirname "$FIRST_FILE")
+            echo "A 4.01 inch driver megtalálva: $FIRST_FILE"
+            echo "Könyvtár másolása: $DRIVER_DIR"
+            sudo -u $CURRENT_USER cp -r $DRIVER_DIR/* $APP_DIR/lib/waveshare_epd/
+            success "Waveshare e-Paper driver másolása sikeres"
+        else
+            handle_error "A szükséges 4.01 inch e-Paper driver (epd4in01f.py) nem található" "Ellenőrizze a Waveshare Github oldalát a megfelelő driver kézi letöltéséhez"
+        fi
+    fi
 else
     handle_error "Nem található a Waveshare e-Paper Python könyvtár" "Ellenőrizze a letöltött e-Paper könyvtár struktúráját, a mappák elnevezése változhatott"
     
     # Keressük meg a könyvtárat az e-Paper mappában
     echo "A waveshare_epd könyvtár keresése..."
-    FOUND_DIR=$(find $APP_DIR/e-Paper -name "waveshare_epd" -type d | head -n 1)
+    FOUND_DIR=$(find $APP_DIR/e-Paper -name "waveshare_epd" -type d 2>/dev/null | head -n 1)
     
     if [ -n "$FOUND_DIR" ]; then
         echo "waveshare_epd könyvtár megtalálva: $FOUND_DIR"
         sudo -u $CURRENT_USER mkdir -p $APP_DIR/lib
         sudo -u $CURRENT_USER cp -r $FOUND_DIR $APP_DIR/lib/
         success "Waveshare e-Paper Python könyvtár telepítése sikeres alternatív helyről"
+        
+        # Ellenőrizzük a driver fájlt is
+        if [ ! -f "$APP_DIR/lib/waveshare_epd/epd4in01f.py" ]; then
+            warning "A szükséges epd4in01f.py fájl nem található. Keresés folytatása..."
+            EPAPER_FILES=$(find $APP_DIR/e-Paper -name "epd4in01f.py" 2>/dev/null)
+            
+            if [ -n "$EPAPER_FILES" ]; then
+                FIRST_FILE=$(echo "$EPAPER_FILES" | head -n 1)
+                DRIVER_DIR=$(dirname "$FIRST_FILE")
+                echo "A 4.01 inch driver megtalálva: $FIRST_FILE"
+                echo "Fájl másolása a lib könyvtárba..."
+                sudo -u $CURRENT_USER cp $FIRST_FILE $APP_DIR/lib/waveshare_epd/
+                success "Waveshare e-Paper driver másolása sikeres"
+            else
+                handle_error "A szükséges 4.01 inch e-Paper driver (epd4in01f.py) nem található" "Ellenőrizze a Waveshare Github oldalát a megfelelő driver kézi letöltéséhez"
+            fi
+        fi
     else
         handle_error "A waveshare_epd könyvtár nem található a letöltött archívumban" "Töltse le manuálisan a könyvtárat, vagy ellenőrizze a megfelelő API elérhetőségét"
     fi
 fi
 
-# SPI interfész engedélyezése
-echo "SPI interfész engedélyezése..."
-if ! grep -q "dtparam=spi=on" /boot/config.txt; then
-    echo "dtparam=spi=on" | sudo tee -a /boot/config.txt >> $LOG_FILE 2>&1
-    REBOOT_NEEDED=1
-    success "SPI interfész engedélyezve (újraindítás szükséges)"
-else
-    success "SPI interfész már engedélyezve van"
-    REBOOT_NEEDED=0
-fi
-
 # Naptár alkalmazás létrehozása
-echo "Naptár alkalmazás létrehozása..."
+echo -e "${BOLD}Naptár alkalmazás létrehozása...${RESET}"
 
 # Alkalmazás forráskód
 sudo -u $CURRENT_USER bash -c "cat > $APP_DIR/calendar_display.py" << 'EOF'
@@ -228,7 +335,7 @@ import logging
 
 # Naplózás beállítása
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,  # Részletesebb naplózás a hibakereséshez
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.FileHandler("calendar.log"),
@@ -237,21 +344,49 @@ logging.basicConfig(
 )
 logger = logging.getLogger("CalendarDisplay")
 
+# A könyvtár elérési útjainak kiírása a naplóba diagnosztikai célokból
+logger.info(f"Aktuális munkakönyvtár: {os.getcwd()}")
+logger.info(f"Python path: {sys.path}")
+
 # Elérési út beállítása a waveshare modulokhoz
 current_dir = os.path.dirname(os.path.abspath(__file__))
 lib_dir = os.path.join(current_dir, 'lib')
 if os.path.exists(lib_dir):
     sys.path.append(lib_dir)
+    logger.info(f"Lib könyvtár hozzáadva a path-hoz: {lib_dir}")
+
+    # Ellenőrizzük a lib könyvtár tartalmát
+    lib_contents = os.listdir(lib_dir)
+    logger.info(f"Lib könyvtár tartalma: {lib_contents}")
+
+    # Ha van waveshare_epd könyvtár, annak tartalmát is ellenőrizzük
+    waveshare_dir = os.path.join(lib_dir, 'waveshare_epd')
+    if os.path.exists(waveshare_dir):
+        waveshare_contents = os.listdir(waveshare_dir)
+        logger.info(f"waveshare_epd könyvtár tartalma: {waveshare_contents}")
 else:
     logger.error(f"A lib mappa nem található: {lib_dir}")
     sys.exit(1)
 
 try:
+    logger.info("A waveshare_epd modul importálása...")
     from waveshare_epd import epd4in01f
-except ImportError:
+    logger.info("A waveshare_epd modul sikeresen importálva!")
+except ImportError as e:
     logger.error("Nem sikerült importálni a waveshare_epd modult")
-    logger.error("ImportError: %s", traceback.format_exc())
-    sys.exit(1)
+    logger.error(f"ImportError: {e}")
+    logger.error("Traceback: %s", traceback.format_exc())
+    
+    # Próbáljuk meg a teljes elérési úttal
+    try:
+        logger.info("Próbálkozás teljes elérési úttal...")
+        sys.path.append(os.path.join(current_dir, 'lib', 'waveshare_epd'))
+        import epd4in01f
+        logger.info("A modul sikeresen importálva a teljes elérési úttal!")
+    except ImportError as e:
+        logger.error(f"Továbbra sem sikerült importálni: {e}")
+        logger.error("Traceback: %s", traceback.format_exc())
+        sys.exit(1)
 
 # Konstansok
 WIDTH = 640
@@ -277,8 +412,10 @@ try:
     font24 = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', 24)
     font36 = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 36)
     font48 = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 48)
-except OSError:
-    logger.warning("Nem sikerült betölteni a DejaVu betűtípust, alapértelmezett használata")
+    logger.info("Betűtípusok sikeresen betöltve")
+except OSError as e:
+    logger.warning(f"Nem sikerült betölteni a DejaVu betűtípust: {e}")
+    logger.warning("Alapértelmezett betűtípus használata")
     font18 = ImageFont.load_default()
     font24 = ImageFont.load_default()
     font36 = ImageFont.load_default()
@@ -847,8 +984,26 @@ def update_display():
     try:
         # E-Paper kijelző inicializálása
         logger.info("E-Paper kijelző inicializálása...")
-        epd = epd4in01f.EPD()
+        
+        # Itt használjuk a helyesen importált modult
+        epd = None
+        try:
+            # Első módszer - normál import esetén
+            epd = epd4in01f.EPD()
+            logger.info("EPD objektum sikeresen létrehozva a waveshare_epd modulból")
+        except NameError:
+            # Második módszer - teljes import esetén
+            import epd4in01f
+            epd = epd4in01f.EPD()
+            logger.info("EPD objektum sikeresen létrehozva a közvetlen epd4in01f modulból")
+        
+        if epd is None:
+            logger.error("Nem sikerült létrehozni az EPD objektumot!")
+            return
+        
+        logger.info("EPD inicializálása...")
         epd.init()
+        logger.info("EPD inicializálása sikeres!")
         
         # Kép létrehozása
         image = Image.new('L', (WIDTH, HEIGHT), WHITE)
@@ -933,14 +1088,17 @@ def update_display():
             y = HEIGHT - 50 + (i * 25)
             draw.text((20, y), f"• {news}", font=font18, fill=BLACK)
         
-        # Kép konvertálása 7 színűre
-        colored_image = epd.display(epd.getbuffer(image))
+        # Kép konvertálása és megjelenítése
+        logger.info("Kép megjelenítése...")
+        epd.display(epd.getbuffer(image))
+        logger.info("Kép megjelenítése sikeres!")
         
         # Frissítés időpontjának rögzítése
         logger.info(f"Kijelző frissítve: {now.strftime('%Y-%m-%d %H:%M:%S')}")
         
         # E-ink kijelzők hosszú élettartamához: mélyalvó állapotba helyezés
         epd.sleep()
+        logger.info("EPD alvó állapotba helyezve")
         
     except Exception as e:
         logger.error(f"Hiba a kijelző frissítésekor: {e}")
@@ -951,6 +1109,19 @@ def main():
     logger.info("E-Paper Naptár Program indítása...")
     
     try:
+        # Ellenőrizzük, hogy az SPI eszközök elérhetőek-e
+        try:
+            import os
+            spi_devices = os.listdir("/dev/spi")
+            logger.info(f"SPI eszközök: {spi_devices}")
+        except (FileNotFoundError, NotADirectoryError):
+            logger.warning("SPI eszközök könyvtára nem található. Ellenőrizze, hogy az SPI interfész engedélyezve van-e.")
+            try:
+                spi_devices = os.popen("ls -l /dev/spi*").read().strip()
+                logger.info(f"SPI eszközök ls paranccsal: {spi_devices}")
+            except Exception as e:
+                logger.warning(f"SPI eszközök lekérdezése ls paranccsal sikertelen: {e}")
+        
         while True:
             logger.info("Kijelző frissítése...")
             update_display()
@@ -984,10 +1155,41 @@ success "Naptár alkalmazás létrehozva megfelelő jogosultságokkal"
 sudo -u $CURRENT_USER bash -c "cat > $APP_DIR/start_calendar.sh" << 'EOF'
 #!/bin/bash
 cd "$(dirname "$0")"
+
+# Diagnosztika futtatása
+echo "Rendszerdiagnosztika futtatása..."
+echo "SPI eszközök:"
+ls -l /dev/spi* 2>/dev/null || echo "Nem található SPI eszköz. Ellenőrizze az SPI beállításokat!"
+
+echo "Felhasználói csoportok:"
+id
+
+echo "Python verzió:"
+python3 --version
+
+echo "Könyvtár tartalma:"
+ls -la
+
+echo "lib könyvtár tartalma:"
+ls -la lib 2>/dev/null || echo "lib könyvtár nem található!"
+
+echo "waveshare_epd könyvtár tartalma:"
+ls -la lib/waveshare_epd 2>/dev/null || echo "waveshare_epd könyvtár nem található!"
+
+# Indulás
+echo "Alkalmazás indítása..."
 if [ -d "venv" ]; then
     source venv/bin/activate
+    echo "Virtuális környezet aktiválva"
+    # Ellenőrizzük a gpiozero modult
+    python3 -c "import gpiozero" 2>/dev/null || pip install gpiozero RPi.GPIO spidev
+    python3 calendar_display.py
+else
+    echo "Virtuális környezet nem található, rendszerszintű Python használata"
+    # Ellenőrizzük a gpiozero modult
+    python3 -c "import gpiozero" 2>/dev/null || sudo pip3 install gpiozero RPi.GPIO spidev
+    python3 calendar_display.py
 fi
-python3 calendar_display.py
 EOF
 
 chmod +x $APP_DIR/start_calendar.sh
@@ -1006,6 +1208,8 @@ WorkingDirectory=$APP_DIR
 ExecStart=$APP_DIR/start_calendar.sh
 Restart=always
 RestartSec=10
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
@@ -1017,6 +1221,193 @@ sudo systemctl enable e-paper-calendar.service
 
 success "Rendszerszolgáltatás létrehozva és engedélyezve a helyes felhasználóval"
 
+# Diagnosztikai szkript létrehozása
+sudo -u $CURRENT_USER bash -c "cat > $APP_DIR/diagnose.sh" << 'EOF'
+#!/bin/bash
+
+# E-Paper kijelző diagnosztikai szkript
+echo "=================================================="
+echo "E-Paper Kijelző Diagnosztikai Eszköz"
+echo "=================================================="
+
+# Színek
+RED="\033[1;31m"
+GREEN="\033[1;32m"
+YELLOW="\033[1;33m"
+BLUE="\033[1;34m"
+RESET="\033[0m"
+
+# Rendszerinformációk
+echo -e "${BLUE}Rendszerinformációk:${RESET}"
+echo "Dátum és idő: $(date)"
+echo "Hostname: $(hostname)"
+echo "Kernel: $(uname -r)"
+echo "Felhasználó: $(whoami)"
+echo "Felhasználói csoportok: $(id)"
+echo "Python verzió: $(python3 --version 2>&1)"
+echo
+
+# SPI Ellenőrzés
+echo -e "${BLUE}SPI interfész ellenőrzése:${RESET}"
+if grep -q "dtparam=spi=on" /boot/config.txt; then
+    echo -e "${GREEN}SPI interfész engedélyezve a konfigurációs fájlban${RESET}"
+else
+    echo -e "${RED}SPI interfész NINCS engedélyezve a konfigurációs fájlban!${RESET}"
+    echo "  Engedélyezés: sudo sh -c 'echo dtparam=spi=on >> /boot/config.txt && reboot'"
+fi
+
+# SPI eszközök ellenőrzése
+if ls /dev/spi* &>/dev/null; then
+    echo -e "${GREEN}SPI eszközök megtalálhatók:${RESET} $(ls -l /dev/spi*)"
+else
+    echo -e "${RED}SPI eszközök NEM találhatók!${RESET}"
+    echo "  Ellenőrizze, hogy az SPI engedélyezve van-e és a rendszer újraindult-e."
+fi
+echo
+
+# GPIO csoportok
+echo -e "${BLUE}Felhasználói csoportok ellenőrzése:${RESET}"
+for group in spi gpio; do
+    if id -nG | grep -qw "$group"; then
+        echo -e "${GREEN}A felhasználó tagja a ${group} csoportnak${RESET}"
+    else
+        echo -e "${RED}A felhasználó NEM tagja a ${group} csoportnak!${RESET}"
+        echo "  Csoporthoz adás: sudo usermod -a -G $group $(whoami)"
+    fi
+done
+echo
+
+# Python csomagok ellenőrzése
+echo -e "${BLUE}Python csomagok ellenőrzése:${RESET}"
+cd $(dirname $0)
+if [ -d "venv" ]; then
+    source venv/bin/activate
+    PIP_CMD="pip"
+    echo "Virtuális környezet használata"
+else
+    PIP_CMD="pip3"
+    echo "Rendszerszintű Python használata"
+fi
+
+# Ellenőrizendő csomagok listája
+PACKAGES="RPi.GPIO spidev gpiozero pytz requests ephem feedparser holidays python-dateutil pillow"
+MISSING=0
+
+for pkg in $PACKAGES; do
+    if $PIP_CMD list | grep -i "$pkg" &>/dev/null; then
+        echo -e "${GREEN}✓ $pkg${RESET} telepítve"
+    else
+        echo -e "${RED}✗ $pkg${RESET} HIÁNYZIK!"
+        MISSING=1
+    fi
+done
+
+if [ $MISSING -eq 1 ]; then
+    echo -e "\n${YELLOW}Hiányzó csomagok telepítése:${RESET}"
+    echo "  ${PIP_CMD} install ${PACKAGES}"
+fi
+echo
+
+# Waveshare könyvtár ellenőrzése
+echo -e "${BLUE}Waveshare könyvtár ellenőrzése:${RESET}"
+cd $(dirname $0)
+if [ -d "lib/waveshare_epd" ]; then
+    echo -e "${GREEN}waveshare_epd könyvtár megtalálható:${RESET} $(ls -la lib/waveshare_epd | wc -l) fájl"
+    
+    # Ellenőrizzük a szükséges driver fájlt
+    if [ -f "lib/waveshare_epd/epd4in01f.py" ]; then
+        echo -e "${GREEN}4.01 inch driver (epd4in01f.py) megtalálható${RESET}"
+    else
+        echo -e "${RED}4.01 inch driver (epd4in01f.py) NEM található!${RESET}"
+        
+        # Keressük meg a drivereket a forrásban
+        if [ -d "e-Paper" ]; then
+            echo "  Driver keresése a forrásban..."
+            DRIVERS=$(find e-Paper -name "epd4in01f.py" 2>/dev/null)
+            if [ -n "$DRIVERS" ]; then
+                echo -e "${GREEN}Driver megtalálva:${RESET}"
+                echo "$DRIVERS"
+                echo "  Másolás: cp $(echo "$DRIVERS" | head -n1) lib/waveshare_epd/"
+            else
+                echo -e "${RED}Driver nem található a forrásban sem!${RESET}"
+            fi
+        else
+            echo -e "${RED}A forráskód könyvtár (e-Paper) sem található!${RESET}"
+        fi
+    fi
+else
+    echo -e "${RED}waveshare_epd könyvtár NEM található!${RESET}"
+fi
+echo
+
+# Szolgáltatás állapota
+echo -e "${BLUE}Szolgáltatás állapot ellenőrzése:${RESET}"
+if systemctl is-active e-paper-calendar.service &>/dev/null; then
+    echo -e "${GREEN}Szolgáltatás fut${RESET}"
+    systemctl status e-paper-calendar.service --no-pager
+else
+    echo -e "${RED}Szolgáltatás NEM fut!${RESET}"
+    systemctl status e-paper-calendar.service --no-pager || echo "Szolgáltatás nem található"
+fi
+echo
+
+# Naplófájl ellenőrzése
+echo -e "${BLUE}Naplófájl ellenőrzése:${RESET}"
+if [ -f "calendar.log" ]; then
+    echo -e "${GREEN}Naplófájl létezik${RESET} ($(du -h calendar.log | cut -f1) méret)"
+    echo "Utolsó 10 sor a naplóból:"
+    tail -n 10 calendar.log
+else
+    echo -e "${RED}Naplófájl NEM létezik!${RESET}"
+fi
+echo
+
+# Összefoglaló és javaslatok
+echo -e "${BLUE}=================================================${RESET}"
+echo -e "${BLUE}Diagnosztika összefoglalása:${RESET}"
+
+ISSUES=0
+
+# SPI problémák
+if ! grep -q "dtparam=spi=on" /boot/config.txt || ! ls /dev/spi* &>/dev/null; then
+    echo -e "${RED}→ SPI probléma:${RESET} Engedélyezze az SPI-t és indítsa újra a rendszert."
+    ISSUES=1
+fi
+
+# Csoport problémák
+if ! id -nG | grep -qw "spi" || ! id -nG | grep -qw "gpio"; then
+    echo -e "${RED}→ Csoporttagság probléma:${RESET} Adja hozzá a felhasználót az spi és gpio csoportokhoz."
+    ISSUES=1
+fi
+
+# Waveshare könyvtár problémák
+if [ ! -d "lib/waveshare_epd" ] || [ ! -f "lib/waveshare_epd/epd4in01f.py" ]; then
+    echo -e "${RED}→ Waveshare könyvtár probléma:${RESET} A driver fájlok hiányoznak vagy hibásak."
+    ISSUES=1
+fi
+
+# Python csomag problémák
+if [ $MISSING -eq 1 ]; then
+    echo -e "${RED}→ Python csomag probléma:${RESET} Hiányzó csomagok telepítése szükséges."
+    ISSUES=1
+fi
+
+# Szolgáltatás problémák
+if ! systemctl is-active e-paper-calendar.service &>/dev/null; then
+    echo -e "${RED}→ Szolgáltatás probléma:${RESET} A szolgáltatás nem fut."
+    ISSUES=1
+fi
+
+if [ $ISSUES -eq 0 ]; then
+    echo -e "${GREEN}Nem találtunk hibát! Ha a kijelző még mindig nem működik, ellenőrizze a fizikai csatlakozásokat.${RESET}"
+fi
+
+echo -e "${BLUE}=================================================${RESET}"
+EOF
+
+chmod +x $APP_DIR/diagnose.sh
+success "Diagnosztikai szkript létrehozva"
+
 # Jogosultságok beállítása a teljes alkalmazás könyvtárhoz
 sudo chown -R $CURRENT_USER:$CURRENT_USER $APP_DIR
 chmod -R 755 $APP_DIR
@@ -1024,27 +1415,29 @@ success "Alkalmazás könyvtár jogosultságok beállítva"
 
 # Összefoglaló
 echo ""
-echo "==========================================="
-echo "Telepítés befejezve!"
-echo "==========================================="
-echo "A naptár alkalmazás telepítése sikeresen befejeződött."
+echo -e "${BLUE}===========================================${RESET}"
+echo -e "${GREEN}Telepítés befejezve!${RESET}"
+echo -e "${BLUE}===========================================${RESET}"
+echo -e "A naptár alkalmazás telepítése sikeresen befejeződött."
 echo ""
-echo "A naptár alkalmazás helye: $APP_DIR"
-echo "Napló fájl: $APP_DIR/calendar.log"
+echo -e "${BOLD}A naptár alkalmazás helye:${RESET} $APP_DIR"
+echo -e "${BOLD}Napló fájl:${RESET} $APP_DIR/calendar.log"
 echo ""
-echo "A naptár alkalmazást a következő parancsokkal kezelheti:"
+echo -e "${BOLD}A naptár alkalmazást a következő parancsokkal kezelheti:${RESET}"
 echo "  Indítás: sudo systemctl start e-paper-calendar"
 echo "  Leállítás: sudo systemctl stop e-paper-calendar"
 echo "  Újraindítás: sudo systemctl restart e-paper-calendar"
 echo "  Állapot ellenőrzése: sudo systemctl status e-paper-calendar"
 echo ""
-echo "Az alkalmazás manuálisan is indítható:"
-echo "  cd $APP_DIR && ./start_calendar.sh"
+echo -e "${BOLD}Hibaelhárítás:${RESET}"
+echo "  Diagnosztika futtatása: $APP_DIR/diagnose.sh"
+echo "  Manuális indítás: cd $APP_DIR && ./start_calendar.sh"
+echo "  Napló megtekintése: tail -f $APP_DIR/calendar.log"
 echo ""
 
 # Figyelmeztetés az újraindításról
 if [ $REBOOT_NEEDED -eq 1 ]; then
-    echo -e "\e[33mFIGYELEM:\e[0m Az SPI interfész engedélyezéséhez újra kell indítani a Raspberry Pi-t!"
+    echo -e "${YELLOW}FIGYELEM:${RESET} Az SPI interfész engedélyezéséhez vagy a csoportmódosítások érvényesítéséhez újra kell indítani a Raspberry Pi-t!"
     echo "Újraindítás most? (i/n)"
     read -r answer
     if [ "$answer" = "i" ] || [ "$answer" = "I" ]; then
