@@ -7,8 +7,13 @@ echo "==========================================="
 echo "E-Paper Calendar Display - Eltávolító Script"
 echo "==========================================="
 
-# Alkalmazás könyvtár
-APP_DIR="/home/pi/e_paper_calendar"
+# Aktuális felhasználó és könyvtár meghatározása
+CURRENT_USER=$(whoami)
+HOME_DIR="/home/$CURRENT_USER"
+APP_DIR="$HOME_DIR/e_paper_calendar"
+
+echo "Alkalmazás eltávolítása a következő könyvtárból: $APP_DIR"
+echo ""
 
 # Függvény a sikeres műveletek jelzésére
 success() {
@@ -64,7 +69,7 @@ if [ "$answer" = "i" ] || [ "$answer" = "I" ]; then
     if [ "$remove_waveshare" = "i" ] || [ "$remove_waveshare" = "I" ]; then
         echo "Waveshare e-Paper könyvtár keresése és törlése..."
         # Keressük meg és töröljük a letöltött Waveshare könyvtárakat
-        find /home/pi -name "e-Paper" -type d -exec rm -rf {} \; 2>/dev/null
+        find $HOME_DIR -name "e-Paper" -type d -exec rm -rf {} \; 2>/dev/null
         success "Waveshare e-Paper könyvtárak törölve"
     fi
 else
