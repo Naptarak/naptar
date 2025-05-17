@@ -1,77 +1,126 @@
 #!/bin/bash
 
-# E-paper Calendar Display Uninstallation Script
-# For Raspberry Pi Zero 2W with Waveshare 4.01 inch HAT (F) 7-color e-paper display
-# Created: May 2025
+# E-Paper Calendar Display Uninstaller (JAVÍTOTT VERZIÓ)
+# For Raspberry Pi Zero 2W with Waveshare 4.01 inch 7-color e-paper HAT
 
-# Text colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+echo "======================================================"
+echo "E-Paper Calendar Display Uninstaller (JAVÍTOTT VERZIÓ)"
+echo "Raspberry Pi Zero 2W + Waveshare 4.01 inch 7-color HAT"
+echo "======================================================"
 
-echo -e "${BLUE}====================================================${NC}"
-echo -e "${BLUE}  E-Paper Calendar Display Uninstallation Script    ${NC}"
-echo -e "${BLUE}====================================================${NC}"
-echo ""
+# Create log file
+LOG_FILE="/home/pi/epaper_calendar_uninstall.log"
+touch $LOG_FILE
+echo "$(date) - Starting uninstallation" > $LOG_FILE
 
-# Check if script is run as root
-if [ "$(id -u)" -ne 0 ]; then
-  echo -e "${RED}Error: This script must be run as root (use sudo)${NC}"
-  exit 1
-fi
-
-PROJECT_DIR="/home/palszilard/e-paper-calendar"
-SERVICE_FILE="/etc/systemd/system/e-paper-calendar.service"
-
-# Function to confirm actions
-confirm() {
-  read -p "$1 (y/n): " response
-  case "$response" in
-    [yY][eE][sS]|[yY]) 
-      return 0
-      ;;
-    *)
-      return 1
-      ;;
-  esac
+# Function to log messages
+log_message() {
+    echo "$(date) - $1" >> $LOG_FILE
+    echo "$1"
 }
 
-# Stop and disable the service
-echo -e "${GREEN}Stopping and disabling e-paper-calendar service...${NC}"
-systemctl stop e-paper-calendar.service 2>/dev/null
-systemctl disable e-paper-calendar.service 2>/dev/null
-rm -f "$SERVICE_FILE" 2>/dev/null
-systemctl daemon-reload
+# Function to check if a command was successful
+check_success() {
+    if [ $? -ne 0 ]; then
+        log_message "ERROR: $1 failed. Check $LOG_FILE for details."
+        exit 1
+    else
+        log_message "SUCCESS: $1 completed."
+    fi
+}
 
-# Remove project files
-echo -e "${GREEN}Removing project files...${NC}"
-if [ -d "$PROJECT_DIR" ]; then
-  rm -rf "$PROJECT_DIR"
-  echo -e "${GREEN}Project directory removed${NC}"
+# Stop and disable the systemd service
+log_message "Stopping and disabling systemd service..."
+sudo systemctl stop epaper-calendar.service >> $LOG_FILE 2>&1
+sudo systemctl disable epaper-calendar.service >> $LOG_FILE 2>&1
+sudo rm -f /etc/systemd/system/epaper-calendar.service >> $LOG_FILE 2>&1
+sudo systemctl daemon-reload >> $LOG_FILE 2>&1
+check_success "systemd service removal"
+
+# Clear the e-paper display if possible
+log_message "Trying to clear the e-paper display..."
+cd /home/pi/epaper_calendar
+if [ -f "epaper_calendar.py" ]; then
+    # Create a small Python script to clear the display
+    cat > clear_display.py << 'EOL'
+#!/usr/bin/env python3
+import os
+import sys
+import logging
+import traceback
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("/home/pi/epaper_clear.log"),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
+# Add the waveshare_epd directory to the system path
+current_dir = os.path.dirname(os.path.realpath(__file__))
+sys.path.append(os.path.join(current_dir, "waveshare_epd"))
+
+try:
+    logger.info("Importing epd4in01f module...")
+    from waveshare_epd import epd4in01f
+    
+    logger.info("Initializing display...")
+    epd = epd4in01f.EPD()
+    epd.init()
+    
+    logger.info("Clearing display...")
+    epd.Clear()
+    
+    logger.info("Putting display to sleep...")
+    epd.sleep()
+    
+    print("Display cleared successfully.")
+except Exception as e:
+    logger.error(f"Error clearing display: {e}")
+    logger.error(traceback.format_exc())
+    print(f"Error clearing display: {e}")
+EOL
+
+    # Make the script executable and run it
+    chmod +x clear_display.py
+    python3 clear_display.py >> $LOG_FILE 2>&1
+    rm clear_display.py
+fi
+
+# Delete log files
+log_message "Removing log files..."
+rm -f /home/pi/epaper_calendar.log >> $LOG_FILE 2>&1
+rm -f /home/pi/epaper_test.log >> $LOG_FILE 2>&1
+rm -f /home/pi/epaper_clear.log >> $LOG_FILE 2>&1
+
+# Remove the project directory
+log_message "Removing project directory..."
+rm -rf /home/pi/epaper_calendar >> $LOG_FILE 2>&1
+check_success "project directory removal"
+
+# Ask if the user wants to remove dependencies
+read -p "Do you want to remove installed dependencies? (y/n) " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    log_message "Removing dependencies (this may not remove all dependencies)..."
+    sudo apt-get remove -y python3-pil python3-numpy python3-requests python3-rpi.gpio python3-spidev python3-gpiozero >> $LOG_FILE 2>&1
+    
+    # Remove pip packages
+    pip3 uninstall -y RPi.GPIO spidev feedparser python-dateutil astral Pillow numpy requests >> $LOG_FILE 2>&1
+    
+    sudo apt-get autoremove -y >> $LOG_FILE 2>&1
+    log_message "Dependencies removed."
 else
-  echo -e "${YELLOW}Project directory not found${NC}"
+    log_message "Dependencies were not removed."
 fi
 
-# Ask if user wants to remove Python dependencies
-if confirm "Do you want to remove installed Python dependencies?"; then
-  echo -e "${GREEN}Removing Python dependencies...${NC}"
-  pip3 uninstall -y feedparser astral ephem requests pillow RPi.GPIO spidev 2>/dev/null
-  echo -e "${GREEN}Python dependencies removed${NC}"
-fi
+# Uninstallation completed
+log_message "======================================================"
+log_message "E-Paper Calendar Display uninstallation completed!"
+log_message "All components have been removed."
 
-# Ask if user wants to restore SPI settings
-if confirm "Do you want to disable SPI interface?"; then
-  echo -e "${GREEN}Disabling SPI interface...${NC}"
-  sed -i '/dtparam=spi=on/d' /boot/config.txt
-  echo -e "${GREEN}SPI interface disabled. You'll need to reboot for this to take effect.${NC}"
-fi
-
-echo -e "${GREEN}Uninstallation completed successfully!${NC}"
-echo ""
-echo -e "The e-paper calendar display has been removed from your system."
-echo -e "You may need to reboot your Raspberry Pi for all changes to take effect."
-echo -e "To reboot, run: ${BLUE}sudo reboot${NC}"
-echo ""
-echo -e "${GREEN}Thank you for using the E-Paper Calendar Display!${NC}"
+exit 0
