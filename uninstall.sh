@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# E-Paper Calendar Display Uninstaller
+# E-Paper Calendar Display Uninstaller (FRISSÍTETT)
 # For Raspberry Pi Zero 2W with Waveshare 4.01 inch 7-color e-paper HAT
 
 echo "======================================================"
-echo "E-Paper Calendar Display Uninstaller"
+echo "E-Paper Calendar Display Uninstaller (FRISSÍTETT)"
 echo "Raspberry Pi Zero 2W + Waveshare 4.01 inch 7-color HAT"
 echo "======================================================"
 
@@ -19,218 +19,166 @@ log_message() {
     echo "$1"
 }
 
-# Function for user confirmation
-confirm() {
-    read -p "$1 (y/n) " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        return 0
-    else
-        return 1
-    fi
-}
-
-log_message "=== STEP 1: Stopping Services ==="
+log_message "=== LÉPÉS 1: Szolgáltatások leállítása ==="
 # Stop and disable the systemd service
-log_message "Stopping and disabling systemd service..."
+log_message "SystemD szolgáltatás leállítása és letiltása..."
 sudo systemctl stop epaper-calendar.service
 sudo systemctl disable epaper-calendar.service
 sudo rm -f /etc/systemd/system/epaper-calendar.service
 sudo systemctl daemon-reload
-log_message "Systemd service removed"
+log_message "SystemD szolgáltatás eltávolítva"
 
-log_message "=== STEP 2: Clearing Display ==="
-# Clear the e-paper display if possible
-log_message "Attempting to clear the e-paper display..."
-
-# Create a directory for the cleanup script if the project directory doesn't exist
-if [ ! -d "/home/pi/epaper_calendar" ]; then
-    mkdir -p /tmp/epaper_cleanup
-    cd /tmp/epaper_cleanup
-    CLEANUP_DIR="/tmp/epaper_cleanup"
-else
-    cd /home/pi/epaper_calendar
-    CLEANUP_DIR="/home/pi/epaper_calendar"
-fi
-
-# Create a small Python script to clear the display
-cat > $CLEANUP_DIR/clear_display.py << 'EOL'
+log_message "=== LÉPÉS 2: Kijelző törlése ==="
+# Minimal script to clear the display - using direct GPIO access
+cat > /tmp/clear_display.py << 'EOL'
 #!/usr/bin/env python3
 import os
 import sys
-import logging
-import traceback
 import time
+import logging
 
-# Configure logging
+# Naplózás beállítása
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("/home/pi/epaper_clear.log"),
-        logging.StreamHandler()
-    ]
+    filename='/home/pi/epaper_clear.log',
+    filemode='w'
 )
-logger = logging.getLogger(__name__)
 
+print("E-Paper kijelző tisztítása...")
+logging.info("E-Paper kijelző tisztítása")
+
+# GPIO elérés próbálása több módon
 try:
-    # Try to set up GPIO first
-    logger.info("Setting up GPIO...")
+    # 1. Módszer - RPi.GPIO
+    print("RPi.GPIO használata...")
     import RPi.GPIO as GPIO
+    
+    # GPIO beállítása
     GPIO.setmode(GPIO.BCM)
     GPIO.setwarnings(False)
     
-    # Define pins for Waveshare 4.01 inch display
+    # Pinek definiálása
     RST_PIN = 17
     DC_PIN = 25
     CS_PIN = 8
     BUSY_PIN = 24
     
-    # Setup GPIO
+    # Pinek beállítása
     GPIO.setup(RST_PIN, GPIO.OUT)
     GPIO.setup(DC_PIN, GPIO.OUT)
     GPIO.setup(CS_PIN, GPIO.OUT)
     GPIO.setup(BUSY_PIN, GPIO.IN)
     
-    logger.info("GPIO setup complete")
+    # Reset szekvencia (a legtöbb e-Paper kijelzőnél működik)
+    print("Reset szekvencia végrehajtása...")
+    GPIO.output(RST_PIN, 1)
+    time.sleep(0.2)
+    GPIO.output(RST_PIN, 0)
+    time.sleep(0.2)
+    GPIO.output(RST_PIN, 1)
+    time.sleep(0.2)
     
-    # Try to setup SPI
-    logger.info("Setting up SPI...")
-    import spidev
-    SPI = spidev.SpiDev()
-    SPI.open(0, 0)
-    SPI.max_speed_hz = 4000000
-    SPI.mode = 0
-    logger.info("SPI setup complete")
-    
-    # Try different approaches to clear the display
-    
-    # 1. First try with waveshare_epd if available
+    # Próbáljuk meg SPI-val
     try:
-        logger.info("Trying to import waveshare_epd module...")
+        import spidev
+        print("SPI használata...")
+        SPI = spidev.SpiDev()
+        SPI.open(0, 0)
+        SPI.max_speed_hz = 4000000
+        SPI.mode = 0
         
-        # Check if we're in the project directory or temp directory
-        current_dir = os.path.dirname(os.path.realpath(__file__))
-        logger.info(f"Current directory: {current_dir}")
+        # Egyszerű parancs küldése (pl. bekapcsolás vagy reset)
+        print("Parancs küldése...")
+        GPIO.output(DC_PIN, 0)  # Command mode
+        GPIO.output(CS_PIN, 0)
+        SPI.writebytes([0x12])  # Software reset command
+        GPIO.output(CS_PIN, 1)
+        time.sleep(0.1)
         
-        # Try multiple paths
-        paths_to_try = [
-            os.path.join(current_dir, "waveshare_epd"),
-            "/home/pi/epaper_calendar/waveshare_epd",
-            os.path.join(current_dir, "e-Paper/RaspberryPi_JetsonNano/python/lib/waveshare_epd")
-        ]
+        # Deep sleep parancs
+        GPIO.output(DC_PIN, 0)  # Command mode
+        GPIO.output(CS_PIN, 0)
+        SPI.writebytes([0x10])  # Deep sleep command
+        GPIO.output(CS_PIN, 1)
         
-        for path in paths_to_try:
-            if os.path.exists(path):
-                logger.info(f"Found potential module path: {path}")
-                sys.path.append(path)
-        
-        from waveshare_epd import epd4in01f
-        
-        logger.info("Initializing display...")
-        epd = epd4in01f.EPD()
-        epd.init()
-        
-        logger.info("Clearing display...")
-        epd.Clear()
-        
-        logger.info("Putting display to sleep...")
-        epd.sleep()
-        
-        print("Display cleared successfully using waveshare_epd.")
-        
-    except ImportError as e:
-        logger.warning(f"Could not import waveshare_epd: {e}")
-        logger.warning("Trying direct approach...")
-        
-        # 2. Try a more direct approach
-        try:
-            # Simple reset sequence
-            logger.info("Performing reset sequence...")
-            GPIO.output(RST_PIN, 1)
-            time.sleep(0.2)
-            GPIO.output(RST_PIN, 0)
-            time.sleep(0.01)
-            GPIO.output(RST_PIN, 1)
-            time.sleep(0.2)
-            
-            # Send a few commands to try to clear/reset the display
-            # These are generic commands that might work with many e-paper displays
-            logger.info("Sending reset commands...")
-            
-            def send_command(command):
-                GPIO.output(DC_PIN, 0)  # Command mode
-                GPIO.output(CS_PIN, 0)
-                SPI.writebytes([command])
-                GPIO.output(CS_PIN, 1)
-            
-            # This is a generic approach - might not work for all displays
-            # Try to send reset command
-            send_command(0x12)  # SWRESET - Software reset
-            time.sleep(0.1)
-            
-            # Put the display to sleep
-            send_command(0x10)  # DEEP_SLEEP
-            time.sleep(0.1)
-            
-            print("Attempted to clear display using direct GPIO/SPI commands.")
-            
-        except Exception as direct_error:
-            logger.error(f"Direct approach failed: {direct_error}")
-    
-    # Clean up GPIO and SPI
-    logger.info("Cleaning up...")
-    try:
         SPI.close()
-        GPIO.cleanup([RST_PIN, DC_PIN, CS_PIN])
-    except:
-        pass
+    except Exception as e:
+        print(f"SPI hiba: {e}")
+        logging.error(f"SPI hiba: {e}")
     
-except Exception as e:
-    logger.error(f"Critical error: {e}")
-    logger.error(traceback.format_exc())
-    print(f"Error clearing display: {e}")
+    # Takarítás
+    GPIO.cleanup([RST_PIN, DC_PIN, CS_PIN])
+    print("RPi.GPIO tisztítás kész")
+    
+except ImportError:
+    print("RPi.GPIO nem érhető el, próbálkozás gpiozero-val...")
+    
+    try:
+        # 2. Módszer - gpiozero
+        from gpiozero import OutputDevice
+        
+        print("gpiozero használata...")
+        rst = OutputDevice(17)
+        dc = OutputDevice(25)
+        cs = OutputDevice(8)
+        
+        # Reset szekvencia
+        print("Reset szekvencia végrehajtása...")
+        rst.on()
+        time.sleep(0.2)
+        rst.off()
+        time.sleep(0.2)
+        rst.on()
+        time.sleep(0.2)
+        
+        # Nincs közvetlen SPI hozzáférés a gpiozero-ban
+        print("gpiozero tisztítás kész")
+        
+    except ImportError:
+        print("Sem RPi.GPIO, sem gpiozero nem érhető el")
+        logging.error("Sem RPi.GPIO, sem gpiozero nem érhető el")
 
-logger.info("Display cleanup complete")
+print("Kijelző törlési kísérlet befejezve")
+logging.info("Kijelző törlési kísérlet befejezve")
 EOL
 
-# Make the script executable and run it
-chmod +x $CLEANUP_DIR/clear_display.py
-python3 $CLEANUP_DIR/clear_display.py
+# Futtatható jogosultság beállítása és futtatás
+chmod +x /tmp/clear_display.py
+python3 /tmp/clear_display.py
+rm /tmp/clear_display.py
 
-# Remove the temporary cleanup files if we created them
-if [ "$CLEANUP_DIR" = "/tmp/epaper_cleanup" ]; then
-    rm -rf /tmp/epaper_cleanup
-fi
-
-log_message "=== STEP 3: Removing Files ==="
+log_message "=== LÉPÉS 3: Fájlok eltávolítása ==="
 # Delete log files
-log_message "Removing log files..."
+log_message "Naplófájlok eltávolítása..."
 rm -f /home/pi/epaper_calendar.log
-rm -f /home/pi/epaper_test.log
+rm -f /home/pi/epaper_minimal_test.log
 rm -f /home/pi/epaper_clear.log
-rm -f /home/pi/epaper_emergency_test.log
+rm -f /home/pi/epaper_test_image.png
 rm -f /home/pi/epaper_calendar_latest.png
 
 # Remove the project directory
 if [ -d "/home/pi/epaper_calendar" ]; then
-    log_message "Removing project directory..."
+    log_message "Projekt könyvtár eltávolítása..."
     rm -rf /home/pi/epaper_calendar
-    log_message "Project directory removed"
+    log_message "Projekt könyvtár eltávolítva"
 else
-    log_message "Project directory not found, already removed"
+    log_message "Projekt könyvtár nem található, már eltávolították"
 fi
 
-log_message "=== STEP 4: Dependency Cleanup ==="
+log_message "=== LÉPÉS 4: Függőségek eltávolítása ==="
 # Ask if the user wants to remove dependencies
-if confirm "Do you want to remove installed dependencies? This might affect other applications."; then
-    log_message "Removing dependencies..."
+read -p "Szeretnéd eltávolítani a telepített függőségeket? Ez más alkalmazásokat is érinthet. (y/n) " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    log_message "Függőségek eltávolítása..."
     
     # Python packages via pip
-    log_message "Removing Python packages..."
+    log_message "Python csomagok eltávolítása..."
     pip_packages=(
         "RPi.GPIO"
         "spidev"
+        "gpiozero"
         "feedparser"
         "python-dateutil"
         "astral"
@@ -240,27 +188,29 @@ if confirm "Do you want to remove installed dependencies? This might affect othe
     )
     
     for package in "${pip_packages[@]}"; do
-        log_message "Uninstalling $package..."
+        log_message "Eltávolítás: $package..."
         pip3 uninstall -y $package || true
     done
     
     # System packages via apt
-    log_message "Removing system packages..."
+    log_message "Rendszer csomagok eltávolítása..."
     sudo apt-get remove -y python3-pil python3-numpy python3-requests \
                           python3-rpi.gpio python3-spidev python3-gpiozero || true
     
-    log_message "Running autoremove to clean up unused packages..."
+    log_message "Autoremove futtatása a nem használt csomagok tisztításához..."
     sudo apt-get autoremove -y
     
-    log_message "Dependencies removed (where possible)"
+    log_message "Függőségek eltávolítva (ahol lehetséges)"
 else
-    log_message "Dependencies were not removed by user choice"
+    log_message "Függőségek nem lettek eltávolítva a felhasználó választása miatt"
 fi
 
-log_message "=== STEP 5: SPI Configuration ==="
+log_message "=== LÉPÉS 5: SPI konfiguráció ==="
 # Ask if user wants to disable SPI
-if confirm "Do you want to disable the SPI interface? Only do this if no other application uses it."; then
-    log_message "Disabling SPI interface..."
+read -p "Szeretnéd letiltani az SPI interfészt? Csak akkor tedd ezt, ha más alkalmazás nem használja. (y/n) " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    log_message "SPI interfész letiltása..."
     
     # Create a backup of config.txt
     sudo cp /boot/config.txt /boot/config.txt.backup
@@ -268,29 +218,31 @@ if confirm "Do you want to disable the SPI interface? Only do this if no other a
     # Remove SPI enable line
     sudo sed -i '/dtparam=spi=on/d' /boot/config.txt
     
-    log_message "SPI interface disabled in config. Will take effect after reboot."
+    log_message "SPI interfész letiltva a konfigban. Újraindítás után lép érvénybe."
     REBOOT_NEEDED=true
 else
-    log_message "SPI interface remains enabled"
+    log_message "SPI interfész engedélyezve marad"
 fi
 
-log_message "=== Uninstallation Complete ==="
-log_message "The E-Paper Calendar application has been successfully removed."
+log_message "=== Eltávolítás kész ==="
+log_message "Az E-Paper Naptár alkalmazás sikeresen eltávolítva."
 
 # Notify about reboot if needed
 if [ "$REBOOT_NEEDED" = true ]; then
-    log_message "A reboot is recommended to complete the uninstallation process."
-    if confirm "Would you like to reboot now?"; then
-        log_message "Rebooting system..."
+    log_message "Ajánlott az újraindítás az eltávolítási folyamat befejezéséhez."
+    read -p "Szeretnél most újraindítani? (y/n) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        log_message "Rendszer újraindítása..."
         sudo reboot
     else
-        log_message "Please reboot manually when convenient."
+        log_message "Kérlek, indítsd újra kézzel, amikor alkalmas."
     fi
 fi
 
 echo "======================================================"
-echo "E-Paper Calendar Display uninstallation completed!"
-echo "All components have been removed."
+echo "E-Paper Calendar Display eltávolítás befejezve!"
+echo "Minden komponens eltávolítva."
 echo "======================================================"
 
 exit 0
