@@ -1,239 +1,271 @@
 #!/bin/bash
 
-# e-Paper Calendar Uninstaller Script - Javított verzió
+# e-Paper Calendar Uninstaller Script (Kibővített diagnosztikával)
 # For Raspberry Pi Zero 2W with Waveshare 4.01 inch 7-color e-Paper HAT
 
-# Színek a kimenethez
-RED="\033[1;31m"
-GREEN="\033[1;32m"
-YELLOW="\033[1;33m"
-BLUE="\033[1;34m"
-BOLD="\033[1m"
-RESET="\033[0m"
+echo "==========================================="
+echo "E-Paper Calendar Display - Eltávolító Script"
+echo "==========================================="
 
-echo -e "${BLUE}===========================================${RESET}"
-echo -e "${BOLD}E-Paper Calendar Display - Eltávolító Script${RESET}"
-echo -e "${BLUE}===========================================${RESET}"
+# Aktuális könyvtár mentése
+SCRIPT_DIR="$(pwd)"
+
+# Log könyvtár létrehozása
+UNINSTALL_LOG_DIR="$SCRIPT_DIR/uninstall_logs"
+mkdir -p "$UNINSTALL_LOG_DIR"
+MAIN_LOG="$UNINSTALL_LOG_DIR/uninstall_main.log"
+
+# Dátum és idő a naplóban
+echo "Eltávolítás indítása: $(date)" > "$MAIN_LOG"
 
 # Aktuális felhasználó és könyvtár meghatározása
 # Ha sudo-val fut, a SUDO_USER változó tartalmazza az eredeti felhasználót
 if [ -n "$SUDO_USER" ]; then
     CURRENT_USER=$SUDO_USER
+    echo "Eltávolítás sudo felhasználóként, eredeti felhasználó: $CURRENT_USER" | tee -a "$MAIN_LOG"
 else
-    CURRENT_USER=$(logname || whoami)
+    CURRENT_USER=$(logname 2>/dev/null || whoami)
+    echo "Eltávolítás normál felhasználóként: $CURRENT_USER" | tee -a "$MAIN_LOG"
+fi
+
+# Ellenőrizzük, hogy van-e root jogosultság
+if [ "$(id -u)" -ne 0 ]; then
+    echo "FIGYELMEZTETÉS: Az eltávolítás nem rendszergazdai (root) jogosultsággal fut. Bizonyos lépések sikertelenek lehetnek." | tee -a "$MAIN_LOG"
+    echo "Javasolt az eltávolítást 'sudo ./uninstall.sh' paranccsal futtatni." | tee -a "$MAIN_LOG"
+    echo "Folytatja az eltávolítást root jogosultság nélkül? (i/n)"
+    read -r answer
+    if [ "$answer" != "i" ] && [ "$answer" != "I" ]; then
+        echo "Eltávolítás megszakítva." | tee -a "$MAIN_LOG"
+        exit 1
+    fi
 fi
 
 # Alkalmazás könyvtárának meghatározása
 HOME_DIR="/home/$CURRENT_USER"
 APP_DIR="$HOME_DIR/e_paper_calendar"
 
-echo -e "${BOLD}E-Paper naptár eltávolítása a következő felhasználó könyvtárából:${RESET} $CURRENT_USER"
-echo -e "${BOLD}Alkalmazás könyvtár:${RESET} $APP_DIR"
+echo "E-Paper naptár eltávolítása a következő felhasználó könyvtárából: $CURRENT_USER" | tee -a "$MAIN_LOG"
+echo "Alkalmazás könyvtár: $APP_DIR" | tee -a "$MAIN_LOG"
 echo ""
 
 # Függvény a sikeres műveletek jelzésére
 success() {
-    echo -e "${GREEN}SIKER:${RESET} $1"
+    echo -e "\e[32mSIKER:\e[0m $1" | tee -a "$MAIN_LOG"
     echo ""
 }
 
 # Függvény figyelmeztetések megjelenítésére
 warning() {
-    echo -e "${YELLOW}FIGYELMEZTETÉS:${RESET} $1"
+    echo -e "\e[33mFIGYELMEZTETÉS:\e[0m $1" | tee -a "$MAIN_LOG"
     echo ""
 }
 
-# Függvény hibák jelzésére
-error() {
-    echo -e "${RED}HIBA:${RESET} $1"
+# Függvény a hibák kezelésére
+handle_error() {
+    echo -e "\e[31mHIBA:\e[0m $1" | tee -a "$MAIN_LOG"
     echo ""
 }
 
-# Szolgáltatás kezelése
-echo -e "${BOLD}Szolgáltatás kezelése...${RESET}"
-if systemctl is-active --quiet e-paper-calendar.service; then
-    echo "Szolgáltatás leállítása..."
-    sudo systemctl stop e-paper-calendar.service
-    success "Szolgáltatás leállítva"
-else
-    warning "A szolgáltatás már le van állítva vagy nem létezik"
-fi
+# Szolgáltatás leállítása és eltávolítása
+echo "Szolgáltatás leállítása és eltávolítása..." | tee -a "$MAIN_LOG"
+if [ "$(id -u)" -eq 0 ]; then
+    if systemctl status e-paper-calendar.service &>/dev/null; then
+        systemctl stop e-paper-calendar.service | tee -a "$MAIN_LOG"
+        systemctl disable e-paper-calendar.service | tee -a "$MAIN_LOG"
+        success "Szolgáltatás leállítva és letiltva"
+    else
+        warning "A szolgáltatás nem fut vagy nem található"
+    fi
 
-# Szolgáltatás letiltása
-if systemctl is-enabled --quiet e-paper-calendar.service; then
-    echo "Szolgáltatás letiltása..."
-    sudo systemctl disable e-paper-calendar.service
-    success "Szolgáltatás letiltva"
+    # Szolgáltatás definíció eltávolítása
+    if [ -f /etc/systemd/system/e-paper-calendar.service ]; then
+        rm -f /etc/systemd/system/e-paper-calendar.service | tee -a "$MAIN_LOG"
+        systemctl daemon-reload | tee -a "$MAIN_LOG"
+        success "Szolgáltatás definíció eltávolítva"
+    else
+        warning "Szolgáltatás definíciós fájl nem található"
+    fi
 else
-    warning "A szolgáltatás már le van tiltva vagy nem létezik"
-fi
-
-# Szolgáltatás definíció eltávolítása
-if [ -f /etc/systemd/system/e-paper-calendar.service ]; then
-    echo "Szolgáltatás definíció eltávolítása..."
-    sudo rm -f /etc/systemd/system/e-paper-calendar.service
-    sudo systemctl daemon-reload
-    success "Szolgáltatás definíció eltávolítva"
-else
-    warning "Szolgáltatás definíciós fájl nem található"
+    warning "Szolgáltatás eltávolítása kihagyva (nem rendszergazda)"
+    echo "Futtassa a következő parancsokat manuálisan rendszergazdaként:" | tee -a "$MAIN_LOG"
+    echo "sudo systemctl stop e-paper-calendar.service" | tee -a "$MAIN_LOG"
+    echo "sudo systemctl disable e-paper-calendar.service" | tee -a "$MAIN_LOG"
+    echo "sudo rm -f /etc/systemd/system/e-paper-calendar.service" | tee -a "$MAIN_LOG"
+    echo "sudo systemctl daemon-reload" | tee -a "$MAIN_LOG"
 fi
 
 # Rendszer tisztítása
-echo -e "${YELLOW}Kérdés: Szeretné eltávolítani az alkalmazás fájlokat és a telepített függőségeket is? (i/n)${RESET}"
+echo "Kérdés: Szeretné eltávolítani az alkalmazás fájlokat és a telepített függőségeket is? (i/n)"
 read -r answer
 
 if [ "$answer" = "i" ] || [ "$answer" = "I" ]; then
     # Alkalmazás fájlok törlése
-    echo -e "${BOLD}Alkalmazás fájlok törlése...${RESET}"
+    echo "Alkalmazás fájlok törlése..." | tee -a "$MAIN_LOG"
     if [ -d "$APP_DIR" ]; then
-        if sudo rm -rf "$APP_DIR"; then
-            success "Alkalmazás fájlok törölve"
+        # Naplófájlok mentése előbb
+        if [ -f "$APP_DIR/calendar.log" ]; then
+            cp "$APP_DIR/calendar.log" "$UNINSTALL_LOG_DIR/calendar.log" | tee -a "$MAIN_LOG"
+            success "Naplófájl másolata mentve: $UNINSTALL_LOG_DIR/calendar.log"
+        fi
+        
+        if [ -f "$APP_DIR/epaper_test.log" ]; then
+            cp "$APP_DIR/epaper_test.log" "$UNINSTALL_LOG_DIR/epaper_test.log" | tee -a "$MAIN_LOG"
+            success "Teszt naplófájl másolata mentve: $UNINSTALL_LOG_DIR/epaper_test.log"
+        fi
+        
+        # Alkalmazás könyvtár törlése
+        if ! rm -rf "${APP_DIR:?}" >> "$MAIN_LOG" 2>&1; then
+            handle_error "Nem sikerült törölni az alkalmazás könyvtárat. Próbálja manuálisan: rm -rf $APP_DIR"
         else
-            error "Nem sikerült törölni az alkalmazás fájlokat"
+            success "Alkalmazás fájlok törölve"
         fi
     else
         warning "Az alkalmazás könyvtár nem található: $APP_DIR"
     fi
     
     # Python csomagok eltávolítása
-    echo -e "${YELLOW}Szeretné eltávolítani az összes telepített Python csomagot? (i/n)${RESET}"
+    echo "Szeretné eltávolítani az összes telepített Python csomagot? (i/n)"
     read -r remove_pip
     
     if [ "$remove_pip" = "i" ] || [ "$remove_pip" = "I" ]; then
-        echo -e "${BOLD}Python csomagok eltávolítása...${RESET}"
-        PIP_PACKAGES="RPi.GPIO spidev pytz requests ephem feedparser holidays python-dateutil pillow gpiozero"
+        echo "Python csomagok eltávolítása..." | tee -a "$MAIN_LOG"
+        PIP_PACKAGES="RPi.GPIO spidev pytz requests ephem feedparser holidays python-dateutil pillow"
         
-        # Ellenőrizzük, hogy a virtuális környezet létezik-e
+        # A virtuális környezet már lehet, hogy törölve lett az alkalmazás könyvtárral együtt
         if [ -d "$APP_DIR/venv" ]; then
-            # Ha még nem töröltük a könyvtárat
-            echo "A virtuális környezet eltávolítása..."
-            source $APP_DIR/venv/bin/activate
-            pip uninstall -y $PIP_PACKAGES
+            echo "Virtuális környezet megtalálva, csomagok eltávolítása onnan..." | tee -a "$MAIN_LOG"
+            source "$APP_DIR/venv/bin/activate"
+            pip uninstall -y $PIP_PACKAGES >> "$MAIN_LOG" 2>&1
             deactivate
             success "Virtuális környezet csomagok eltávolítva"
         else
             # Rendszerszintű csomagok eltávolításának megerősítése
-            echo -e "${YELLOW}A rendszerszintű Python csomagok eltávolítása befolyásolhatja más alkalmazásokat.${RESET}"
-            echo -e "${YELLOW}Biztosan el szeretné távolítani a rendszerszintű Python csomagokat? (i/n)${RESET}"
+            echo "A rendszerszintű Python csomagok eltávolítása befolyásolhatja más alkalmazásokat." | tee -a "$MAIN_LOG"
+            echo "Biztosan el szeretné távolítani a rendszerszintű Python csomagokat? (i/n)"
             read -r confirm_pip_removal
             
             if [ "$confirm_pip_removal" = "i" ] || [ "$confirm_pip_removal" = "I" ]; then
-                for pkg in $PIP_PACKAGES; do
-                    echo "Eltávolítás: $pkg"
-                    sudo pip3 uninstall -y $pkg
-                done
-                success "Rendszerszintű Python csomagok eltávolítva"
+                if [ "$(id -u)" -eq 0 ]; then
+                    pip3 uninstall -y $PIP_PACKAGES >> "$MAIN_LOG" 2>&1
+                    success "Rendszerszintű Python csomagok eltávolítva"
+                else
+                    warning "Rendszerszintű Python csomagok eltávolítása kihagyva (nem rendszergazda)"
+                    echo "Futtassa a következő parancsot manuálisan rendszergazdaként:" | tee -a "$MAIN_LOG"
+                    echo "sudo pip3 uninstall -y $PIP_PACKAGES" | tee -a "$MAIN_LOG"
+                fi
             else
-                echo "Rendszerszintű Python csomagok megtartva"
+                echo "Rendszerszintű Python csomagok megtartva" | tee -a "$MAIN_LOG"
             fi
         fi
     fi
     
     # Waveshare könyvtár eltávolítása
-    echo -e "${YELLOW}Szeretné eltávolítani a letöltött Waveshare e-Paper könyvtárat is? (i/n)${RESET}"
+    echo "Szeretné eltávolítani a letöltött Waveshare e-Paper könyvtárat is? (i/n)"
     read -r remove_waveshare
     
     if [ "$remove_waveshare" = "i" ] || [ "$remove_waveshare" = "I" ]; then
-        echo -e "${BOLD}Waveshare e-Paper könyvtár keresése és törlése...${RESET}"
+        echo "Waveshare e-Paper könyvtár keresése és törlése..." | tee -a "$MAIN_LOG"
         # Keressük meg és töröljük a letöltött Waveshare könyvtárakat
-        WAVESHARE_DIRS=$(find $HOME_DIR -name "e-Paper" -type d 2>/dev/null)
+        WAVESHARE_DIRS=$(find "$HOME_DIR" -name "e-Paper" -type d 2>/dev/null)
         
         if [ -n "$WAVESHARE_DIRS" ]; then
-            echo "Talált Waveshare könyvtárak:"
-            echo "$WAVESHARE_DIRS"
-            echo -e "${YELLOW}Ezek a könyvtárak törlésre kerülnek. Folytatja? (i/n)${RESET}"
+            echo "Talált Waveshare könyvtárak:" | tee -a "$MAIN_LOG"
+            echo "$WAVESHARE_DIRS" | tee -a "$MAIN_LOG"
+            echo "Ezek a könyvtárak törlésre kerülnek. Folytatja? (i/n)"
             read -r confirm_waveshare_removal
             
             if [ "$confirm_waveshare_removal" = "i" ] || [ "$confirm_waveshare_removal" = "I" ]; then
-                echo "$WAVESHARE_DIRS" | xargs sudo rm -rf
+                while read -r dir; do
+                    if ! rm -rf "$dir" >> "$MAIN_LOG" 2>&1; then
+                        handle_error "Nem sikerült törölni a könyvtárat: $dir"
+                    else
+                        success "Könyvtár törölve: $dir"
+                    fi
+                done <<< "$WAVESHARE_DIRS"
                 success "Waveshare e-Paper könyvtárak törölve"
             else
-                echo "Waveshare könyvtárak megtartva"
+                echo "Waveshare könyvtárak megtartva" | tee -a "$MAIN_LOG"
             fi
         else
             warning "Nem található Waveshare e-Paper könyvtár"
         fi
     fi
     
-    # Naplófájlok eltávolítása
-    echo -e "${YELLOW}Szeretné eltávolítani a telepítési és alkalmazás naplófájlokat is? (i/n)${RESET}"
-    read -r remove_logs
-    
-    if [ "$remove_logs" = "i" ] || [ "$remove_logs" = "I" ]; then
-        echo -e "${BOLD}Naplófájlok eltávolítása...${RESET}"
-        sudo rm -f $HOME_DIR/install_log.txt
-        if [ -f "$HOME_DIR/calendar.log" ]; then
-            sudo rm -f $HOME_DIR/calendar.log
-        fi
-        success "Naplófájlok eltávolítva"
-    fi
-    
     # SPI interfész állapotának visszaállítása
-    echo -e "${YELLOW}Szeretné visszaállítani az SPI interfészt az eredeti állapotba (kikapcsolni)? (i/n)${RESET}"
+    echo "Szeretné visszaállítani az SPI interfészt az eredeti állapotba (kikapcsolni)? (i/n)"
     read -r disable_spi
     
     if [ "$disable_spi" = "i" ] || [ "$disable_spi" = "I" ]; then
-        echo -e "${BOLD}SPI interfész kikapcsolása...${RESET}"
-        if grep -q "dtparam=spi=on" /boot/config.txt; then
-            sudo sed -i '/dtparam=spi=on/d' /boot/config.txt
-            REBOOT_NEEDED=1
-            success "SPI interfész kikapcsolva (újraindítás szükséges)"
+        echo "SPI interfész kikapcsolása..." | tee -a "$MAIN_LOG"
+        if [ "$(id -u)" -eq 0 ]; then
+            if grep -q "dtparam=spi=on" /boot/config.txt; then
+                sed -i '/dtparam=spi=on/d' /boot/config.txt
+                REBOOT_NEEDED=1
+                success "SPI interfész kikapcsolva (újraindítás szükséges)"
+            else
+                warning "Az SPI interfész már ki van kapcsolva"
+                REBOOT_NEEDED=0
+            fi
         else
-            warning "Az SPI interfész már ki van kapcsolva"
-            REBOOT_NEEDED=0
+            warning "SPI interfész kikapcsolása kihagyva (nem rendszergazda)"
+            echo "Futtassa a következő parancsot manuálisan rendszergazdaként:" | tee -a "$MAIN_LOG"
+echo "sudo sed -i '/dtparam=spi=on/d' /boot/config.txt" | tee -a "$MAIN_LOG"
+            REBOOT_NEEDED=1
         fi
     else
-        echo "SPI interfész beállítások megtartva"
+        echo "SPI interfész beállítások megtartva" | tee -a "$MAIN_LOG"
         REBOOT_NEEDED=0
     fi
+
+    # Telepítési naplók eltávolítása
+    echo "Szeretné eltávolítani a telepítési naplófájlokat is? (i/n)"
+    read -r remove_logs
     
-    # Felhasználói csoportok visszaállítása
-    echo -e "${YELLOW}Szeretné eltávolítani a felhasználót az SPI és GPIO csoportokból? (i/n)${RESET}"
-    read -r remove_groups
-    
-    if [ "$remove_groups" = "i" ] || [ "$remove_groups" = "I" ]; then
-        echo -e "${BOLD}Felhasználó eltávolítása a speciális csoportokból...${RESET}"
+    if [ "$remove_logs" = "i" ] || [ "$remove_logs" = "I" ]; then
+        echo "Telepítési naplók keresése és eltávolítása..." | tee -a "$MAIN_LOG"
+        INSTALL_LOGS=$(find "$HOME_DIR" -name "install_log*.txt" -o -name "install_logs" -type d 2>/dev/null)
         
-        # Figyelmeztetés, hogy ez más alkalmazásokat is érinthet
-        echo -e "${YELLOW}Figyelmeztetés: Ez hatással lehet más alkalmazásokra is, amelyek az SPI vagy GPIO interfészt használják.${RESET}"
-        echo -e "${YELLOW}Folytatja? (i/n)${RESET}"
-        read -r confirm_group_removal
-        
-        if [ "$confirm_group_removal" = "i" ] || [ "$confirm_group_removal" = "I" ]; then
-            # A gpasswd -d parancs használata a csoportok eltávolításához
-            for group in spi gpio; do
-                if id -nG $CURRENT_USER | grep -qw "$group"; then
-                    sudo gpasswd -d $CURRENT_USER $group
-                    success "Felhasználó eltávolítva a $group csoportból"
-                    REBOOT_NEEDED=1
+        if [ -n "$INSTALL_LOGS" ]; then
+            echo "Talált telepítési naplók:" | tee -a "$MAIN_LOG"
+            echo "$INSTALL_LOGS" | tee -a "$MAIN_LOG"
+            while read -r log; do
+                if ! rm -rf "$log" >> "$MAIN_LOG" 2>&1; then
+                    handle_error "Nem sikerült törölni a naplót: $log"
                 else
-                    warning "A felhasználó nem tagja a $group csoportnak"
+                    success "Napló törölve: $log"
                 fi
-            done
+            done <<< "$INSTALL_LOGS"
         else
-            echo "Csoporttagságok megtartva"
+            warning "Nem találhatók telepítési naplófájlok"
         fi
     fi
 else
-    echo "Alkalmazás fájlok megtartása..."
+    echo "Alkalmazás fájlok megtartása..." | tee -a "$MAIN_LOG"
     REBOOT_NEEDED=0
 fi
 
 echo ""
-echo -e "${BLUE}===========================================${RESET}"
-echo -e "${GREEN}Eltávolítás befejezve!${RESET}"
-echo -e "${BLUE}===========================================${RESET}"
-echo -e "Az e-Paper naptár alkalmazás eltávolítása befejeződött."
+echo "==========================================="
+echo "Eltávolítás befejezve!"
+echo "==========================================="
+echo "Az e-Paper naptár alkalmazás eltávolítása befejeződött."
+echo "Napló: $MAIN_LOG"
 echo ""
 
-# Figyelmeztetés az újraindításról, ha beállítások változtak
+# Figyelmeztetés az újraindításról, ha SPI beállítások változtak
 if [ "$REBOOT_NEEDED" = "1" ]; then
-    echo -e "${YELLOW}FIGYELEM:${RESET} Az SPI interfész vagy a csoportbeállítások változtatásainak érvényesítéséhez újra kell indítani a Raspberry Pi-t!"
-    echo -e "${YELLOW}Újraindítás most? (i/n)${RESET}"
+    echo -e "\e[33mFIGYELEM:\e[0m Az SPI interfész beállításainak érvényesítéséhez újra kell indítani a Raspberry Pi-t!"
+    echo "Újraindítás most? (i/n)"
     read -r answer
     if [ "$answer" = "i" ] || [ "$answer" = "I" ]; then
-        echo "A Raspberry Pi újraindul..."
-        sudo reboot
+        if [ "$(id -u)" -eq 0 ]; then
+            echo "A Raspberry Pi újraindul..."
+            reboot
+        else
+            warning "Újraindítás kihagyva (nem rendszergazda)"
+            echo "Futtassa a következő parancsot manuálisan rendszergazdaként:"
+            echo "sudo reboot"
+        fi
     else
         echo "Kérjük, indítsa újra a Raspberry Pi-t manuálisan a későbbiekben!"
     fi
