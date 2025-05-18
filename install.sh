@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# E-Paper Calendar Display Installer (SEPARATED VERSION)
+# E-Paper Calendar Display Installer (TOVÁBBFEJLESZTETT VERZIÓ)
 # For Raspberry Pi Zero 2W with Waveshare 4.01 inch 7-color e-paper HAT
 
 echo "======================================================"
-echo "E-Paper Calendar Display Installer (SEPARATED VERSION)"
+echo "E-Paper Calendar Display Installer (TOVÁBBFEJLESZTETT VERZIÓ)"
 echo "Raspberry Pi Zero 2W + Waveshare 4.01 inch 7-color HAT"
 echo "======================================================"
 
@@ -15,6 +15,7 @@ PROJECT_DIR="/home/$CURRENT_USER/epaper_calendar"
 
 # Könyvtár létrehozása
 mkdir -p "$PROJECT_DIR"
+mkdir -p "$PROJECT_DIR/icons"
 cd "$PROJECT_DIR"
 
 # Naplózás beállítása
@@ -32,7 +33,7 @@ sudo apt-get install -y python3-requests python3-feedparser python3-dateutil
 
 # Astral és más Python könyvtárak telepítése
 echo "Python könyvtárak telepítése..."
-pip3 install --break-system-packages astral python-dateutil
+pip3 install --break-system-packages astral python-dateutil requests
 
 # SPI engedélyezése
 echo "SPI interfész ellenőrzése..."
@@ -53,6 +54,30 @@ if [ $? -ne 0 ]; then
     echo "HIBA: Nem sikerült letölteni a Waveshare könyvtárat a GitHub-ról"
     exit 1
 fi
+
+# Időjárási ikonok letöltése
+echo "Időjárási ikonok letöltése..."
+# Clear/sunny
+curl -s -o "$PROJECT_DIR/icons/01d.png" "https://openweathermap.org/img/wn/01d@2x.png"
+curl -s -o "$PROJECT_DIR/icons/01n.png" "https://openweathermap.org/img/wn/01n@2x.png"
+# Few clouds
+curl -s -o "$PROJECT_DIR/icons/02d.png" "https://openweathermap.org/img/wn/02d@2x.png"
+curl -s -o "$PROJECT_DIR/icons/02n.png" "https://openweathermap.org/img/wn/02n@2x.png"
+# Scattered clouds
+curl -s -o "$PROJECT_DIR/icons/03d.png" "https://openweathermap.org/img/wn/03d@2x.png"
+curl -s -o "$PROJECT_DIR/icons/03n.png" "https://openweathermap.org/img/wn/03n@2x.png"
+# Broken clouds
+curl -s -o "$PROJECT_DIR/icons/04d.png" "https://openweathermap.org/img/wn/04d@2x.png"
+curl -s -o "$PROJECT_DIR/icons/04n.png" "https://openweathermap.org/img/wn/04n@2x.png"
+# Rain
+curl -s -o "$PROJECT_DIR/icons/10d.png" "https://openweathermap.org/img/wn/10d@2x.png"
+curl -s -o "$PROJECT_DIR/icons/10n.png" "https://openweathermap.org/img/wn/10n@2x.png"
+# Thunderstorm
+curl -s -o "$PROJECT_DIR/icons/11d.png" "https://openweathermap.org/img/wn/11d@2x.png"
+# Snow
+curl -s -o "$PROJECT_DIR/icons/13d.png" "https://openweathermap.org/img/wn/13d@2x.png"
+# Mist
+curl -s -o "$PROJECT_DIR/icons/50d.png" "https://openweathermap.org/img/wn/50d@2x.png"
 
 # Kijelző inicializáló program létrehozása
 echo "Kijelző inicializáló program létrehozása..."
@@ -141,11 +166,15 @@ def initialize_display():
         image = Image.new('RGB', (width, height), (255, 255, 255))
         draw = ImageDraw.Draw(image)
         
-        # Háttér téglalap
-        draw.rectangle([(0, 0), (width, 60)], fill=(200, 200, 255))
+        # Szép háttér készítése
+        # Háttér kitöltése világoskék színnel
+        draw.rectangle([(0, 0), (width, height)], fill=(235, 245, 255))
+        
+        # Felső sáv
+        draw.rectangle([(0, 0), (width, 60)], fill=(70, 130, 180))
         
         # Címsor
-        draw.text((width//2 - 180, 10), "E-Paper Naptár Inicializálva", font=font, fill=(0, 0, 0))
+        draw.text((width//2 - 180, 12), "E-Paper Naptár Inicializálva", font=font, fill=(255, 255, 255))
         
         # Verzió és dátum
         now = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -162,16 +191,21 @@ def initialize_display():
             (255, 165, 0)    # Narancs
         ]
         
+        # Színek panel háttere
+        draw.rectangle([(10, 160), (width-10, 360)], fill=(255, 255, 255), outline=(70, 130, 180), width=2)
+        draw.text((20, 170), "Támogatott színek:", font=font, fill=(70, 130, 180))
+        
         for i, color in enumerate(colors):
-            y_pos = 180 + i*30
-            draw.rectangle([(20, y_pos), (100, y_pos+20)], fill=color, outline=(0, 0, 0))
+            y_pos = 220 + i*30
+            draw.rectangle([(40, y_pos), (120, y_pos+20)], fill=color, outline=(0, 0, 0))
             
             # Színnév
             color_names = ["Fekete", "Fehér", "Zöld", "Kék", "Piros", "Sárga", "Narancs"]
-            draw.text((120, y_pos), color_names[i], font=font, fill=(0, 0, 0))
+            draw.text((140, y_pos-5), color_names[i], font=font, fill=(0, 0, 0))
         
         # A naptár program indulási ütemezése
-        draw.text((20, height-60), "A naptár program hamarosan elindul...", font=font, fill=(0, 0, 0))
+        draw.rectangle([(0, height-50), (width, height)], fill=(70, 130, 180))
+        draw.text((width//2 - 200, height-40), "A naptár program hamarosan elindul...", font=font, fill=(255, 255, 255))
         
         # Kép küldése a kijelzőre
         logger.info("Kép küldése a kijelzőre...")
@@ -210,14 +244,50 @@ EOL
 
 chmod +x "$PROJECT_DIR/initialize_display.py"
 
-# Önálló naptár program létrehozása - JAVÍTOTT ASTRAL IMPORTOKKAL
+# Konfiguráció létrehozása
+echo "Konfiguráció létrehozása..."
+cat > "$PROJECT_DIR/config.py" << 'EOL'
+# E-Paper Calendar Display konfigurációs fájl
+
+# Ha van OpenWeatherMap API kulcsod, add meg itt
+# Ingyenes regisztráció: https://home.openweathermap.org/users/sign_up
+OPENWEATHERMAP_API_KEY = ""  # Pl: "a1b2c3d4e5f6g7h8i9j0"
+
+# Város, ahol laksz
+CITY = "Pécs"
+COUNTRY = "Hungary"
+LATITUDE = 46.0727
+LONGITUDE = 18.2323
+TIMEZONE = "Europe/Budapest"
+
+# RSS hírforrás URL-je
+RSS_URL = "https://telex.hu/rss"
+
+# Kijelző frissítési gyakorisága (percben)
+REFRESH_INTERVAL = 10
+
+# Megjelenítési beállítások
+SHOW_WEATHER = True        # Időjárás megjelenítése
+SHOW_RSS_NEWS = True       # RSS hírek megjelenítése
+SHOW_METEORS = True        # Meteorrajok megjelenítése
+SHOW_MOON_PHASE = True     # Holdfázis megjelenítése
+
+# Színek
+HEADER_COLOR = (70, 130, 180)   # Fejléc kék
+ACCENT_COLOR = (0, 120, 215)    # Kiemelő szín
+LIGHT_BG = (235, 245, 255)      # Világos háttér
+DARK_BG = (25, 55, 90)          # Sötét háttér
+PANEL_BG = (255, 255, 255)      # Panel háttér
+EOL
+
+# Önálló naptár program létrehozása - Szebb designnal és időjárás információkkal
 echo "Önálló naptár program létrehozása..."
 cat > "$PROJECT_DIR/calendar_display.py" << 'EOL'
 #!/usr/bin/env python3
 # -*- coding:utf-8 -*-
 
-# Önálló Naptár Megjelenítő Program
-# Ne függjön a Waveshare könyvtártól közvetlenül
+# Továbbfejlesztett Naptár Megjelenítő Program
+# Szebb design és időjárás információk
 
 import os
 import sys
@@ -226,10 +296,35 @@ import datetime
 import traceback
 import logging
 import feedparser
+import requests
+import json
 import RPi.GPIO as GPIO
-import spidev
 from dateutil.easter import easter
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
+
+# Konfigurációs fájl importálása
+try:
+    sys.path.append(os.path.dirname(os.path.realpath(__file__)))
+    from config import *
+except ImportError:
+    # Alapértelmezett beállítások, ha nem sikerült betölteni a konfigurációt
+    OPENWEATHERMAP_API_KEY = ""
+    CITY = "Pécs"
+    COUNTRY = "Hungary"
+    LATITUDE = 46.0727
+    LONGITUDE = 18.2323
+    TIMEZONE = "Europe/Budapest"
+    RSS_URL = "https://telex.hu/rss"
+    REFRESH_INTERVAL = 10
+    SHOW_WEATHER = True
+    SHOW_RSS_NEWS = True
+    SHOW_METEORS = True
+    SHOW_MOON_PHASE = True
+    HEADER_COLOR = (70, 130, 180)
+    ACCENT_COLOR = (0, 120, 215)
+    LIGHT_BG = (235, 245, 255)
+    DARK_BG = (25, 55, 90)
+    PANEL_BG = (255, 255, 255)
 
 # Naplózás beállítása
 logging.basicConfig(
@@ -244,7 +339,6 @@ logger = logging.getLogger(__name__)
 
 # Importok ellenőrzése
 try:
-    import requests
     from astral import LocationInfo
     
     # Astral importok kezelése különböző verziókhoz
@@ -340,167 +434,17 @@ def get_moon_phase_description(percent):
 # Konstansok
 WIDTH = 640
 HEIGHT = 400
-RSS_URL = "https://telex.hu/rss"
-CITY = "Pécs"  # Módosítsd a saját városodra
-COUNTRY = "Hungary"
-LATITUDE = 46.0727  # Módosítsd a saját koordinátáidra
-LONGITUDE = 18.2323
-TIMEZONE = "Europe/Budapest"
-
-# Pin definíciók a Waveshare 4.01 inch kijelzőhöz
-RST_PIN = 17
-DC_PIN = 25
-CS_PIN = 8
-BUSY_PIN = 24
 
 # Színkódok
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
-GREEN = (0, 255, 0)
-BLUE = (0, 0, 255)
-RED = (255, 0, 0)
-YELLOW = (255, 255, 0)
-ORANGE = (255, 165, 0)
-
-# Egyszerű e-Paper vezérlő osztály, amely közvetlenül használja a GPIO-t és SPI-t
-class EPaperDisplay:
-    def __init__(self):
-        self.width = WIDTH
-        self.height = HEIGHT
-        self.setup_hardware()
-    
-    def setup_hardware(self):
-        # GPIO beállítása
-        GPIO.setmode(GPIO.BCM)
-        GPIO.setwarnings(False)
-        GPIO.setup(RST_PIN, GPIO.OUT)
-        GPIO.setup(DC_PIN, GPIO.OUT)
-        GPIO.setup(CS_PIN, GPIO.OUT)
-        GPIO.setup(BUSY_PIN, GPIO.IN)
-        
-        # SPI beállítása
-        self.spi = spidev.SpiDev()
-        self.spi.open(0, 0)
-        self.spi.max_speed_hz = 4000000
-        self.spi.mode = 0
-    
-    def digital_write(self, pin, value):
-        GPIO.output(pin, value)
-    
-    def digital_read(self, pin):
-        return GPIO.input(pin)
-    
-    def delay_ms(self, delaytime):
-        time.sleep(delaytime / 1000.0)
-    
-    def send_command(self, command):
-        self.digital_write(DC_PIN, 0)
-        self.digital_write(CS_PIN, 0)
-        self.spi.writebytes([command])
-        self.digital_write(CS_PIN, 1)
-    
-    def send_data(self, data):
-        self.digital_write(DC_PIN, 1)
-        self.digital_write(CS_PIN, 0)
-        self.spi.writebytes([data])
-        self.digital_write(CS_PIN, 1)
-    
-    def init(self):
-        try:
-            logger.info("Kijelző inicializálása...")
-            
-            # Reset
-            self.digital_write(RST_PIN, 1)
-            self.delay_ms(200)
-            self.digital_write(RST_PIN, 0)
-            self.delay_ms(2)
-            self.digital_write(RST_PIN, 1)
-            self.delay_ms(200)
-            
-            # Várunk, amíg a BUSY pin nem jelez
-            self.wait_until_idle()
-            
-            # Alapvető inicializáló parancsok
-            # Ez egy egyszerűsített inicializálás, csak az alapvető funkcionalitáshoz
-            self.send_command(0x12)  # SWRESET - Software Reset
-            self.delay_ms(100)
-            self.wait_until_idle()
-            
-            return 0
-        except Exception as e:
-            logger.error(f"Inicializálási hiba: {e}")
-            return -1
-    
-    def wait_until_idle(self):
-        while self.digital_read(BUSY_PIN) == 0:  # 0: busy, 1: idle
-            self.delay_ms(100)
-    
-    def getbuffer(self, image):
-        # Egyszerűsített verzió, csak a PIL Kép visszaadása
-        return image
-    
-    def display(self, image):
-        logger.info("Kép megjelenítése a kijelzőn...")
-        try:
-            if isinstance(image, Image.Image):
-                # Egyszerűsített verzió - csak néhány parancs küldése a kijelzőnek
-                # Ez nem a teljes Waveshare protokoll, csak egy minimális implementáció
-                self.send_command(0x10)  # DATA_START_TRANSMISSION
-                self.delay_ms(2)
-                
-                # Valós implementációban itt küldenénk a képadatokat
-                # Ez azonban csak a funkcionalitás demonstrációja
-                logger.info("Egyszerűsített képküldés...")
-                
-                # A frissítés elindítása
-                self.send_command(0x12)  # DISPLAY_REFRESH
-                self.delay_ms(100)
-                self.wait_until_idle()
-                
-                # Kép mentése, hogy láthassuk, mit küldtünk volna
-                image_path = os.path.expanduser("~/epaper_calendar_latest.png")
-                image.save(image_path)
-                logger.info(f"Kép mentve: {image_path}")
-                
-                return 0
-            else:
-                logger.error("Nem PIL Image objektum!")
-                return -1
-        except Exception as e:
-            logger.error(f"Képmegjelenítési hiba: {e}")
-            return -1
-    
-    def sleep(self):
-        logger.info("Kijelző alvó módba helyezése...")
-        try:
-            # Deep sleep mode
-            self.send_command(0x07)  # DEEP_SLEEP
-            self.send_data(0xA5)     # Deep sleep parameter
-            
-            # Lezárjuk az SPI-t
-            self.spi.close()
-            
-            return 0
-        except Exception as e:
-            logger.error(f"Alvó mód hiba: {e}")
-            return -1
-    
-    def close(self):
-        logger.info("Erőforrások felszabadítása...")
-        try:
-            # Lezárjuk az SPI-t ha még nem tettük
-            try:
-                self.spi.close()
-            except:
-                pass
-            
-            # GPIO tisztítás
-            GPIO.cleanup([RST_PIN, DC_PIN, CS_PIN, BUSY_PIN])
-            
-            return 0
-        except Exception as e:
-            logger.error(f"Lezárási hiba: {e}")
-            return -1
+GREEN = (0, 170, 0)
+BLUE = (0, 100, 200)
+RED = (200, 0, 0)
+YELLOW = (255, 180, 0)
+ORANGE = (255, 120, 0)
+GRAY = (100, 100, 100)
+LIGHT_GRAY = (200, 200, 200)
 
 # Magyar ünnepnapok és jeles napok (fix dátumok)
 FIXED_HOLIDAYS = {
@@ -1035,18 +979,228 @@ def get_rss_feed():
         logger.error(traceback.format_exc())
         return ["RSS hiba: Nem sikerült betölteni a híreket."]
 
+# Időjárás adatok lekérése az OpenWeatherMap API-tól
+def get_weather_data():
+    if not OPENWEATHERMAP_API_KEY:
+        logger.warning("OpenWeatherMap API kulcs nincs beállítva, az időjárás adatok nem lesznek elérhetőek.")
+        return None
+    
+    try:
+        logger.info(f"Időjárási adatok lekérése {CITY} városra...")
+        url = f"https://api.openweathermap.org/data/2.5/weather?q={CITY}&appid={OPENWEATHERMAP_API_KEY}&units=metric&lang=hu"
+        response = requests.get(url)
+        
+        if response.status_code == 200:
+            weather_data = response.json()
+            
+            # Adatok kivonatolása
+            temperature = weather_data["main"]["temp"]
+            feels_like = weather_data["main"]["feels_like"]
+            humidity = weather_data["main"]["humidity"]
+            pressure = weather_data["main"]["pressure"]
+            weather_desc = weather_data["weather"][0]["description"]
+            weather_icon = weather_data["weather"][0]["icon"]
+            wind_speed = weather_data["wind"]["speed"] * 3.6  # m/s to km/h
+            
+            # További adatok kinyerése, ha rendelkezésre állnak
+            sunrise = datetime.datetime.fromtimestamp(weather_data["sys"]["sunrise"]) if "sunrise" in weather_data["sys"] else None
+            sunset = datetime.datetime.fromtimestamp(weather_data["sys"]["sunset"]) if "sunset" in weather_data["sys"] else None
+            
+            # Környező órák előrejelzése
+            weather_by_hour = None
+            
+            # Adatok visszaadása
+            return {
+                "temperature": temperature,
+                "feels_like": feels_like,
+                "humidity": humidity,
+                "pressure": pressure,
+                "description": weather_desc,
+                "icon": weather_icon,
+                "wind_speed": wind_speed,
+                "sunrise": sunrise,
+                "sunset": sunset,
+                "hourly": weather_by_hour
+            }
+        else:
+            logger.error(f"Hiba az időjárási adatok lekérésekor: {response.status_code} - {response.text}")
+            return None
+    except Exception as e:
+        logger.error(f"Kivétel az időjárási adatok lekérésekor: {e}")
+        logger.error(traceback.format_exc())
+        return None
+
+# Lekerekített sarkú téglalap rajzolása
+def draw_rounded_rectangle(draw, xy, corner_radius, fill=None, outline=None, width=1):
+    # Koordináták kibontása
+    x1, y1, x2, y2 = xy
+    
+    # Sarok pozíciók
+    r = corner_radius
+    
+    # A téglalap 4 sarkát rajzoljuk meg
+    draw.ellipse((x1, y1, x1 + 2*r, y1 + 2*r), fill=fill, outline=outline, width=width)  # bal felső
+    draw.ellipse((x2 - 2*r, y1, x2, y1 + 2*r), fill=fill, outline=outline, width=width)  # jobb felső
+    draw.ellipse((x1, y2 - 2*r, x1 + 2*r, y2), fill=fill, outline=outline, width=width)  # bal alsó
+    draw.ellipse((x2 - 2*r, y2 - 2*r, x2, y2), fill=fill, outline=outline, width=width)  # jobb alsó
+    
+    # A téglalap négy részét rajzoljuk meg a sarkok között
+    draw.rectangle((x1 + r, y1, x2 - r, y1 + r), fill=fill, outline=None)  # felső
+    draw.rectangle((x1 + r, y2 - r, x2 - r, y2), fill=fill, outline=None)  # alsó
+    draw.rectangle((x1, y1 + r, x1 + r, y2 - r), fill=fill, outline=None)  # bal
+    draw.rectangle((x2 - r, y1 + r, x2, y2 - r), fill=fill, outline=None)  # jobb
+    
+    # Középső rész
+    draw.rectangle((x1 + r, y1 + r, x2 - r, y2 - r), fill=fill, outline=None)
+    
+    # Keret (ha van)
+    if outline and width > 0:
+        # Vonalak rajzolása a négy oldalon
+        draw.line([(x1 + r, y1), (x2 - r, y1)], fill=outline, width=width)  # felső
+        draw.line([(x1 + r, y2), (x2 - r, y2)], fill=outline, width=width)  # alsó
+        draw.line([(x1, y1 + r), (x1, y2 - r)], fill=outline, width=width)  # bal
+        draw.line([(x2, y1 + r), (x2, y2 - r)], fill=outline, width=width)  # jobb
+
+# Szöveg elhelyezése adott területen belül, szükség esetén sortöréssel
+def draw_text_in_area(draw, text, area, font, fill, align="left", valign="top", max_lines=None):
+    x1, y1, x2, y2 = area
+    width = x2 - x1
+    height = y2 - y1
+    line_height = font.getbbox("Ag")[3] + 2  # Sormagasság
+    
+    # Szöveg tördelése
+    lines = []
+    words = text.split(' ')
+    current_line = words[0]
+    
+    for word in words[1:]:
+        test_line = current_line + ' ' + word
+        # Ellenőrizzük, hogy belefér-e a szöveg a szélességbe
+        text_width = font.getbbox(test_line)[2]
+        if text_width <= width:
+            current_line = test_line
+        else:
+            lines.append(current_line)
+            current_line = word
+    
+    lines.append(current_line)
+    
+    # Ellenőrizzük, hogy nem túl sok sor van-e
+    if max_lines is not None and len(lines) > max_lines:
+        lines = lines[:max_lines]
+        # Utolsó sor végére három pontot teszünk, ha csonkoltuk a szöveget
+        if len(lines) == max_lines:
+            lines[-1] = lines[-1][:len(lines[-1])-3] + "..."
+    
+    # Szöveg függőleges pozíciójának számítása
+    total_text_height = len(lines) * line_height
+    if valign == "top":
+        y = y1
+    elif valign == "middle":
+        y = y1 + (height - total_text_height) // 2
+    else:  # "bottom"
+        y = y2 - total_text_height
+    
+    # Sorok kirajzolása
+    for line in lines:
+        text_width = font.getbbox(line)[2]
+        if align == "left":
+            x = x1
+        elif align == "center":
+            x = x1 + (width - text_width) // 2
+        else:  # "right"
+            x = x2 - text_width
+        
+        draw.text((x, y), line, font=font, fill=fill)
+        y += line_height
+    
+    return y  # Visszaadjuk az utolsó sor utáni y koordinátát
+
+# Waveshare e-Paper kijelző kezelése
+def initialize_epaper():
+    try:
+        logger.info("Waveshare e-Paper modul inicializálása...")
+        # A Waveshare könyvtár elérési útja
+        current_dir = os.path.dirname(os.path.realpath(__file__))
+        lib_path = os.path.join(current_dir, 'e-Paper/RaspberryPi_JetsonNano/python/lib')
+        sys.path.append(lib_path)
+        
+        # Importálás megkísérlése
+        try:
+            from waveshare_epd import epd4in01f
+            logger.info("epd4in01f modul importálva")
+            epd = epd4in01f.EPD()
+            return epd
+        except ImportError:
+            logger.warning("epd4in01f modul nem található, alternatív modulok keresése...")
+            
+            # Alternatív modulok keresése
+            waveshare_dir = os.path.join(lib_path, 'waveshare_epd')
+            if os.path.exists(waveshare_dir):
+                for file in os.listdir(waveshare_dir):
+                    if file.startswith('epd') and file.endswith('.py') and ('4' in file or 'f' in file):
+                        module_name = file[:-3]  # .py nélkül
+                        logger.info(f"Alternatív modul próbálása: {module_name}")
+                        try:
+                            # Dinamikus import
+                            import importlib
+                            waveshare_epd = importlib.import_module('waveshare_epd')
+                            epd_module = getattr(waveshare_epd, module_name)
+                            epd = epd_module.EPD()
+                            logger.info(f"Sikeresen importálva: {module_name}")
+                            return epd
+                        except Exception as e:
+                            logger.error(f"Hiba az alternatív modul importálásakor: {e}")
+                
+                logger.error("Nem sikerült importálni egyetlen e-Paper modult sem")
+                return None
+            else:
+                logger.error("Waveshare könyvtár nem található")
+                return None
+    except Exception as e:
+        logger.error(f"Hiba az e-Paper kijelző inicializálása közben: {e}")
+        logger.error(traceback.format_exc())
+        return None
+
+# Időjárás ikon betöltése
+def load_weather_icon(icon_code):
+    try:
+        current_dir = os.path.dirname(os.path.realpath(__file__))
+        icon_path = os.path.join(current_dir, f"icons/{icon_code}.png")
+        
+        if os.path.exists(icon_path):
+            return Image.open(icon_path)
+        else:
+            # Fallback az alapértelmezett ikonra
+            fallback_path = os.path.join(current_dir, "icons/01d.png")
+            if os.path.exists(fallback_path):
+                return Image.open(fallback_path)
+            else:
+                logger.error(f"Nincs elérhető időjárás ikon: {icon_code}.png")
+                return None
+    except Exception as e:
+        logger.error(f"Hiba az időjárás ikon betöltésekor: {e}")
+        return None
+
 # Naptár információk megjelenítése
 def update_display():
     epd = None
     try:
         logger.info("Naptár megjelenítése kezdődik...")
         
-        # E-Paper kijelző inicializálása
-        epd = EPaperDisplay()
-        logger.info("EPD objektum létrehozva")
+        # E-Paper kijelző inicializálása a Waveshare könyvtárral
+        epd = initialize_epaper()
+        if epd is None:
+            logger.error("Nem sikerült inicializálni a kijelzőt")
+            return False
         
+        logger.info("Kijelző inicializálása...")
         epd.init()
         logger.info("Kijelző inicializálva")
+        
+        width = epd.width
+        height = epd.height
+        logger.info(f"Kijelző méretei: {width}x{height}")
         
         # Aktuális dátum és idő lekérése
         now = datetime.datetime.now()
@@ -1064,27 +1218,34 @@ def update_display():
         
         hu_day = hungarian_days[day_of_week]
         hu_month = hungarian_months[month]
-        hu_date = f"{now.year}. {hu_month} {now.day}., {hu_day}"
+        hu_date = f"{now.year}. {hu_month} {now.day}."
         
         # Betűtípus beállítása
         font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+        regular_font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+        
         if not os.path.exists(font_path):
             font_path = "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf"
+            regular_font_path = "/usr/share/fonts/truetype/freefont/FreeSans.ttf"
         
-        if os.path.exists(font_path):
-            title_font = ImageFont.truetype(font_path, 24)
-            date_font = ImageFont.truetype(font_path, 22)
-            main_font = ImageFont.truetype(font_path, 18)
-            small_font = ImageFont.truetype(font_path, 14)
+        if os.path.exists(font_path) and os.path.exists(regular_font_path):
+            header_font = ImageFont.truetype(font_path, 24)
+            title_font = ImageFont.truetype(font_path, 22)
+            large_font = ImageFont.truetype(font_path, 32)
+            date_font = ImageFont.truetype(font_path, 20)
+            main_font = ImageFont.truetype(regular_font_path, 18)
+            small_font = ImageFont.truetype(regular_font_path, 14)
         else:
             logger.warning("Nem találhatók a betűtípusok, alapértelmezett használata")
-            title_font = ImageFont.load_default()
-            date_font = title_font
-            main_font = title_font
-            small_font = title_font
+            header_font = ImageFont.load_default()
+            title_font = header_font
+            large_font = header_font
+            date_font = header_font
+            main_font = header_font
+            small_font = header_font
         
         # Üres kép létrehozása
-        image = Image.new('RGB', (WIDTH, HEIGHT), WHITE)
+        image = Image.new('RGB', (width, height), LIGHT_BG)
         draw = ImageDraw.Draw(image)
         
         # Ellenőrizzük, hogy a mai nap speciális nap-e
@@ -1146,104 +1307,283 @@ def update_display():
         meteor_showers = check_meteor_showers(now)
         
         # RSS hírfolyam lekérése
-        rss_entries = get_rss_feed()
+        rss_entries = get_rss_feed() if SHOW_RSS_NEWS else []
+        
+        # Időjárás adatok lekérése
+        weather_data = get_weather_data() if SHOW_WEATHER else None
         
         # Képernyő elemek rajzolása
+        # ------- FEJLÉC --------
         # Fejléc háttér
-        draw.rectangle([(0, 0), (WIDTH, 50)], fill=(230, 230, 255))
+        draw.rectangle([(0, 0), (width, 55)], fill=HEADER_COLOR)
         
         # Dátum kiírása
         if is_holiday:
             date_color = RED
         else:
-            date_color = BLACK
+            date_color = WHITE
         
-        draw.text((20, 15), hu_date, font=date_font, fill=date_color)
+        # Nap neve és dátum
+        draw.text((20, 5), hu_day, font=date_font, fill=WHITE)
+        draw.text((20, 28), hu_date, font=date_font, fill=date_color)
         
-        # Idő kiírása
-        draw.text((WIDTH - 120, 15), time_str, font=date_font, fill=BLACK)
+        # Idő kiírása nagy méretben
+        draw.text((width - 120, 10), time_str, font=large_font, fill=WHITE)
         
-        # Aktuális pozíció a rajzoláshoz
-        y_pos = 70
+        # ------- PANELEK --------
+        # Panel méretei
+        panel_padding = 10
+        panel_spacing = 15
+        col_width = (width - 3*panel_padding) // 2
+        
+        # Bal oldali oszlop y pozíciója
+        left_y = 65
+        
+        # IDŐJÁRÁS PANEL (ha elérhető)
+        if weather_data is not None:
+            weather_panel_height = 150
+            
+            # Panel keret
+            draw_rounded_rectangle(draw, 
+                                  (panel_padding, left_y, 
+                                   panel_padding + col_width, left_y + weather_panel_height), 
+                                  corner_radius=10,
+                                  fill=PANEL_BG,
+                                  outline=HEADER_COLOR,
+                                  width=2)
+            
+            # Panel címsor
+            draw.text((panel_padding + 15, left_y + 10), "Időjárás", font=title_font, fill=ACCENT_COLOR)
+            
+            # Időjárás adatok
+            temp = round(weather_data["temperature"])
+            desc = weather_data["description"].capitalize()
+            
+            # Időjárás ikon betöltése
+            weather_icon = load_weather_icon(weather_data["icon"])
+            if weather_icon:
+                # Ikon átméretezése
+                weather_icon = weather_icon.resize((60, 60), Image.LANCZOS)
+                # Ikon elhelyezése
+                image.paste(weather_icon, (panel_padding + 15, left_y + 40), weather_icon.convert('RGBA'))
+            
+            # Hőmérséklet kiírása
+            draw.text((panel_padding + 85, left_y + 45), f"{temp}°C", font=large_font, fill=BLACK)
+            draw.text((panel_padding + 85, left_y + 80), desc, font=main_font, fill=BLUE)
+            
+            # További időjárási adatok
+            draw.text((panel_padding + 15, left_y + 110), 
+                     f"Szél: {round(weather_data['wind_speed'])} km/h  |  Páratartalom: {weather_data['humidity']}%", 
+                     font=small_font, fill=GRAY)
+            
+            left_y += weather_panel_height + panel_spacing
+        
+        # NAPI INFORMÁCIÓK PANEL
+        info_panel_height = 120
+        
+        # Panel keret
+        draw_rounded_rectangle(draw, 
+                              (panel_padding, left_y, 
+                               panel_padding + col_width, left_y + info_panel_height), 
+                              corner_radius=10,
+                              fill=PANEL_BG,
+                              outline=HEADER_COLOR,
+                              width=2)
+        
+        # Panel címsor
+        draw.text((panel_padding + 15, left_y + 10), "Napi információk", font=title_font, fill=ACCENT_COLOR)
         
         # Speciális nap kiírása, ha van
+        info_y = left_y + 45
         if special_day:
             special_day_name, _ = special_day
-            draw.text((20, y_pos), f"Mai nap: {special_day_name}", font=main_font, fill=special_day_color)
-            y_pos += 30
+            draw.text((panel_padding + 20, info_y), f"Mai nap: {special_day_name}", font=main_font, fill=special_day_color)
+            info_y += 30
         
         # Névnap kiírása
-        draw.text((20, y_pos), f"Névnap: {nameday}", font=main_font, fill=BLUE)
-        y_pos += 30
+        draw.text((panel_padding + 20, info_y), f"Névnap: {nameday}", font=main_font, fill=BLUE)
+        
+        left_y += info_panel_height + panel_spacing
+        
+        # NAPKELTE/NAPNYUGTA PANEL
+        sun_panel_height = 130
+        
+        # Panel keret
+        draw_rounded_rectangle(draw, 
+                              (panel_padding, left_y, 
+                               panel_padding + col_width, left_y + sun_panel_height), 
+                              corner_radius=10,
+                              fill=PANEL_BG,
+                              outline=HEADER_COLOR,
+                              width=2)
+        
+        # Panel címsor
+        draw.text((panel_padding + 15, left_y + 10), "Nap és Hold", font=title_font, fill=ACCENT_COLOR)
         
         # Napkelte és napnyugta információk
         sunrise_str = format_time(sunrise)
         sunset_str = format_time(sunset)
-        draw.text((20, y_pos), f"Napkelte: {sunrise_str} | Napnyugta: {sunset_str}", font=main_font, fill=ORANGE)
-        y_pos += 30
+        
+        # Rajzolj napot és holdat grafikusan
+        # Nap
+        sun_x = panel_padding + 50
+        sun_y = left_y + 50
+        draw.ellipse((sun_x-15, sun_y-15, sun_x+15, sun_y+15), fill=YELLOW, outline=ORANGE, width=2)
+        
+        # Sugarak a nap körül
+        for i in range(8):
+            angle = i * 45 * 3.14159 / 180  # Radián
+            outer_x = sun_x + 24 * round(math.sin(angle))
+            outer_y = sun_y - 24 * round(math.cos(angle))
+            inner_x = sun_x + 18 * round(math.sin(angle))
+            inner_y = sun_y - 18 * round(math.cos(angle))
+            draw.line([(inner_x, inner_y), (outer_x, outer_y)], fill=YELLOW, width=2)
+        
+        draw.text((sun_x + 25, sun_y - 10), f"↑ {sunrise_str}", font=main_font, fill=BLACK)
+        draw.text((sun_x + 25, sun_y + 10), f"↓ {sunset_str}", font=main_font, fill=BLACK)
+        
+        # Hold
+        moon_y = left_y + 95
+        draw.ellipse((sun_x-12, moon_y-12, sun_x+12, moon_y+12), fill=(220, 220, 220), outline=(180, 180, 180), width=2)
+        
+        # Holdfázis árnyékolás
+        if moon_phase_percent < 50:
+            # Növekvő hold - jobb oldal világos
+            shade_width = int(24 * (50 - moon_phase_percent) / 50)
+            draw.ellipse((sun_x-12, moon_y-12, sun_x+12, moon_y+12), fill=(220, 220, 220))
+            draw.rectangle((sun_x-12, moon_y-12, sun_x-12+shade_width, moon_y+12), fill=(100, 100, 100))
+            draw.ellipse((sun_x-12, moon_y-12, sun_x+12, moon_y+12), outline=(180, 180, 180), width=1)
+        else:
+            # Fogyó hold - bal oldal világos
+            shade_width = int(24 * (moon_phase_percent - 50) / 50)
+            draw.ellipse((sun_x-12, moon_y-12, sun_x+12, moon_y+12), fill=(220, 220, 220))
+            draw.rectangle((sun_x+12-shade_width, moon_y-12, sun_x+12, moon_y+12), fill=(100, 100, 100))
+            draw.ellipse((sun_x-12, moon_y-12, sun_x+12, moon_y+12), outline=(180, 180, 180), width=1)
         
         # Holdkelte és holdnyugta információk
         moonrise_str = format_time(moonrise_val)
         moonset_str = format_time(moonset_val)
-        draw.text((20, y_pos), f"Holdkelte: {moonrise_str} | Holdnyugta: {moonset_str}", font=main_font, fill=BLACK)
-        y_pos += 30
         
-        # Hold fázis kiírása
-        draw.text((20, y_pos), f"Hold fázis: {moon_phase_percent}% ({moon_phase_text})", font=main_font, fill=BLUE)
-        y_pos += 30
+        draw.text((sun_x + 25, moon_y - 10), f"↑ {moonrise_str}", font=main_font, fill=BLACK)
+        draw.text((sun_x + 25, moon_y + 10), f"↓ {moonset_str}", font=main_font, fill=BLACK)
         
-        # Meteorraj információk kiírása, ha van
-        if meteor_showers:
-            meteor_text = "Meteorraj: "
-            for i, shower in enumerate(meteor_showers):
-                if i > 0:
-                    meteor_text += ", "
-                meteor_text += shower["name"]
-                if shower["is_peak"]:
-                    meteor_text += " (csúcs)"
+        # Jobb oldali oszlop y pozíciója
+        right_x = panel_padding * 2 + col_width
+        right_y = 65
+        
+        # METEORRAJ PANEL
+        if SHOW_METEORS and meteor_showers:
+            meteor_panel_height = 120 if len(meteor_showers) > 1 else 90
             
-            draw.text((20, y_pos), meteor_text, font=main_font, fill=(150, 0, 150))
-            y_pos += 30
-        
-        # Elválasztó vonal
-        draw.line([(20, y_pos), (WIDTH - 20, y_pos)], fill=(200, 200, 200), width=2)
-        y_pos += 20
-        
-        # RSS hírfolyam fejléc
-        draw.text((20, y_pos), "Hírek (Telex.hu):", font=main_font, fill=GREEN)
-        y_pos += 30
-        
-        # RSS hírek kiírása
-        for i, entry in enumerate(rss_entries):
-            # Szöveg hosszának korlátozása
-            if len(entry) > 80:
-                entry = entry[:77] + "..."
+            # Panel keret
+            draw_rounded_rectangle(draw, 
+                                  (right_x, right_y, 
+                                   right_x + col_width, right_y + meteor_panel_height), 
+                                  corner_radius=10,
+                                  fill=PANEL_BG,
+                                  outline=HEADER_COLOR,
+                                  width=2)
             
-            draw.text((30, y_pos), f"• {entry}", font=small_font, fill=BLACK)
-            y_pos += 25
+            # Panel címsor
+            draw.text((right_x + 15, right_y + 10), "Aktív meteorrajok", font=title_font, fill=ACCENT_COLOR)
+            
+            # Meteor információk kiírása
+            meteor_y = right_y + 45
+            for shower in meteor_showers:
+                name = shower["name"]
+                is_peak = shower["is_peak"]
+                
+                text = f"• {name}"
+                if is_peak:
+                    text += " (csúcs)"
+                
+                draw.text((right_x + 20, meteor_y), text, font=main_font, fill=(100, 0, 150))
+                meteor_y += 25
+            
+            right_y += meteor_panel_height + panel_spacing
         
-        # Utolsó frissítés ideje
+        # RSS HÍREK PANEL
+        if SHOW_RSS_NEWS and rss_entries:
+            # Számítsuk ki a fennmaradó helyet
+            available_height = height - right_y - 20
+            
+            # Panel keret
+            draw_rounded_rectangle(draw, 
+                                  (right_x, right_y, 
+                                   right_x + col_width, height - 20), 
+                                  corner_radius=10,
+                                  fill=PANEL_BG,
+                                  outline=HEADER_COLOR,
+                                  width=2)
+            
+            # Panel címsor
+            draw.text((right_x + 15, right_y + 10), "Hírek (Telex.hu)", font=title_font, fill=ACCENT_COLOR)
+            
+            # RSS hírek kiírása
+            news_y = right_y + 45
+            for i, entry in enumerate(rss_entries):
+                # Szöveg hosszának korlátozása
+                max_lines = 2
+                area = (right_x + 15, news_y, right_x + col_width - 15, news_y + 60)
+                end_y = draw_text_in_area(draw, entry, area, small_font, BLACK, max_lines=max_lines)
+                news_y = end_y + 10
+                
+                # Vonal az egyes hírek között
+                if i < len(rss_entries) - 1:
+                    draw.line([(right_x + 40, news_y - 5), (right_x + col_width - 40, news_y - 5)], 
+                             fill=LIGHT_GRAY, width=1)
+        
+        # HOLDFÁZIS PANEL (ha nincs a RSS panel mellett)
+        elif SHOW_MOON_PHASE and not meteor_showers:
+            moon_panel_height = 100
+            
+            # Panel keret
+            draw_rounded_rectangle(draw, 
+                                  (right_x, right_y, 
+                                   right_x + col_width, right_y + moon_panel_height), 
+                                  corner_radius=10,
+                                  fill=PANEL_BG,
+                                  outline=HEADER_COLOR,
+                                  width=2)
+            
+            # Panel címsor
+            draw.text((right_x + 15, right_y + 10), "Holdfázis", font=title_font, fill=ACCENT_COLOR)
+            
+            # Hold fázis kiírása
+            draw.text((right_x + 20, right_y + 50), 
+                     f"Hold fázis: {moon_phase_percent}% ({moon_phase_text})", 
+                     font=main_font, fill=BLUE)
+        
+        # Utolsó frissítés ideje legalul
         updated_str = f"Frissítve: {now.strftime('%Y-%m-%d %H:%M')}"
-        draw.text((WIDTH - 200, HEIGHT - 20), updated_str, font=small_font, fill=(100, 100, 100))
+        draw.text((width - 150, height - 15), updated_str, font=small_font, fill=GRAY)
+        
+        # Képernyőkép mentése (debug)
+        image_path = os.path.expanduser("~/epaper_calendar_latest.png")
+        image.save(image_path)
+        logger.info(f"Képernyőkép elmentve: {image_path}")
         
         # Kép megjelenítése a kijelzőn
         logger.info("Kép küldése a kijelzőre...")
-        epd.display(image)
+        epd.display(epd.getbuffer(image))
+        logger.info("Kép sikeresen megjelenítve a kijelzőn")
         
         # Kijelző alvó módba helyezése
         logger.info("Kijelző alvó módba helyezése...")
         epd.sleep()
         
         logger.info("Naptár sikeresen megjelenítve a kijelzőn")
-        
+        return True
     except Exception as e:
         logger.error(f"HIBA a naptár megjelenítésekor: {e}")
         logger.error(traceback.format_exc())
-        
-        # Ha hiba történt, próbáljunk meg alvó módba helyezni
+        return False
+    finally:
+        # Biztosítsuk, hogy az erőforrások felszabadulnak
         if epd is not None:
             try:
-                epd.close()
+                # Már lehet, hogy meghívtuk a sleep()-et, de jobb biztosra menni
+                epd.sleep()
             except:
                 pass
 
@@ -1252,15 +1592,23 @@ def main():
         logger.info("E-Paper Naptár alkalmazás indítása")
         
         # Kezdeti frissítés
-        update_display()
+        if not update_display():
+            logger.error("Nem sikerült a kijelző kezdeti frissítése, újrapróbálkozás 10 másodperc múlva...")
+            time.sleep(10)
+            if not update_display():
+                logger.error("Ismételt hiba a kijelző frissítésekor, leállás.")
+                return
         
-        # Fő ciklus - 10 percenkénti frissítés
+        # Fő ciklus - konfigurálható frissítési gyakoriság
         while True:
-            logger.info("Várakozás 10 percig a következő frissítésig...")
-            time.sleep(600)  # 10 perc = 600 másodperc
+            logger.info(f"Várakozás {REFRESH_INTERVAL} percig a következő frissítésig...")
+            time.sleep(REFRESH_INTERVAL * 60)  # Percek -> másodpercek
             
-            # Kijelző frissítése
-            update_display()
+            # Kijelző frissítése, hiba esetén újrapróbálkozás
+            if not update_display():
+                logger.error("Hiba a kijelző frissítésekor, újrapróbálkozás 30 másodperc múlva...")
+                time.sleep(30)
+                update_display()
             
     except KeyboardInterrupt:
         logger.info("Program megszakítva a felhasználó által")
@@ -1390,13 +1738,31 @@ else
     echo "Ellenőrizd a naplót további részletekért: ~/epaper_init.log"
 fi
 
+# OpenWeatherMap API kulcs beállítása
+echo ""
+echo "Az időjárás információk megjelenítéséhez OpenWeatherMap API kulcs szükséges."
+echo "Ha szeretnéd beállítani, regisztrálj a https://home.openweathermap.org/users/sign_up oldalon."
+read -p "Van OpenWeatherMap API kulcsod, amit szeretnél most beállítani? (y/n): " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    read -p "Add meg az API kulcsot: " api_key
+    sed -i "s/OPENWEATHERMAP_API_KEY = \"\"/OPENWEATHERMAP_API_KEY = \"$api_key\"/" "$PROJECT_DIR/config.py"
+    echo "API kulcs beállítva. A naptár újraindítása..."
+    sudo systemctl restart epaper-calendar.service
+else
+    echo "Az API kulcs beállítása kihagyva. Bármikor beállíthatod később a $PROJECT_DIR/config.py fájlban."
+fi
+
 # Összegzés
 echo "========================================================================"
 echo "Telepítés kész!"
 echo ""
 echo "A program két fő részből áll:"
 echo "1. initialize_display.py - A Waveshare könyvtárat használja a kijelző kezdeti beállításához"
-echo "2. calendar_display.py - Az önálló naptár program, amely közvetlenül kezeli a kijelzőt"
+echo "2. calendar_display.py - Az önálló naptár program, amely szép megjelenítést és időjárási adatokat tartalmaz"
+echo ""
+echo "Konfigurációs beállítások:"
+echo "$PROJECT_DIR/config.py - Itt állíthatod be a megjelenítési opciókat és az API kulcsot"
 echo ""
 echo "Ha az SPI interfész most lett engedélyezve, újraindítás szükséges."
 echo ""
@@ -1409,6 +1775,9 @@ echo "journalctl -u epaper-calendar.service -f"
 echo ""
 echo "Kézi futtatás:"
 echo "cd $PROJECT_DIR && python3 calendar_display.py"
+echo ""
+echo "A legutóbbi megjelenítés megtekintése:"
+echo "xdg-open ~/epaper_calendar_latest.png"
 echo ""
 echo "Eltávolításhoz futtasd:"
 echo "$PROJECT_DIR/uninstall.sh"
@@ -1426,4 +1795,4 @@ if [ "$REBOOT_NEEDED" = true ]; then
     fi
 fi
 
-echo "Telepítés befejezve."
+echo "Telepítés sikeresen befejezve. Élvezd a továbbfejlesztett E-Paper naptárt!"
