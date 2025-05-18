@@ -246,12 +246,11 @@ chmod +x "$PROJECT_DIR/initialize_display.py"
 
 # Konfiguráció létrehozása
 echo "Konfiguráció létrehozása..."
-cat > "$PROJECT_DIR/config.py" << 'EOL'
+cat > "$PROJECT_DIR/config.py" << EOL
 # E-Paper Calendar Display konfigurációs fájl
 
-# Ha van OpenWeatherMap API kulcsod, add meg itt
-# Ingyenes regisztráció: https://home.openweathermap.org/users/sign_up
-OPENWEATHERMAP_API_KEY = ""  # Pl: "a1b2c3d4e5f6g7h8i9j0"
+# OpenWeatherMap API kulcs
+OPENWEATHERMAP_API_KEY = "1e39a49c6785626b3aca124f4d4ce591"
 
 # Város, ahol laksz
 CITY = "Pécs"
@@ -281,6 +280,7 @@ PANEL_BG = (255, 255, 255)      # Panel háttér
 EOL
 
 # Önálló naptár program létrehozása - Szebb designnal és időjárás információkkal
+# MATH MODUL IMPORTÁLVA A HIBA ELKERÜLÉSE VÉGETT
 echo "Önálló naptár program létrehozása..."
 cat > "$PROJECT_DIR/calendar_display.py" << 'EOL'
 #!/usr/bin/env python3
@@ -292,6 +292,7 @@ cat > "$PROJECT_DIR/calendar_display.py" << 'EOL'
 import os
 import sys
 import time
+import math  # MATH MODUL IMPORTÁLVA
 import datetime
 import traceback
 import logging
@@ -308,7 +309,7 @@ try:
     from config import *
 except ImportError:
     # Alapértelmezett beállítások, ha nem sikerült betölteni a konfigurációt
-    OPENWEATHERMAP_API_KEY = ""
+    OPENWEATHERMAP_API_KEY = "1e39a49c6785626b3aca124f4d4ce591"
     CITY = "Pécs"
     COUNTRY = "Hungary"
     LATITUDE = 46.0727
@@ -1432,12 +1433,12 @@ def update_display():
         
         # Sugarak a nap körül
         for i in range(8):
-            angle = i * 45 * 3.14159 / 180  # Radián
-            outer_x = sun_x + 24 * round(math.sin(angle))
-            outer_y = sun_y - 24 * round(math.cos(angle))
-            inner_x = sun_x + 18 * round(math.sin(angle))
-            inner_y = sun_y - 18 * round(math.cos(angle))
-            draw.line([(inner_x, inner_y), (outer_x, outer_y)], fill=YELLOW, width=2)
+            angle = i * 45 * math.pi / 180  # Radián
+            outer_x = sun_x + 24 * math.sin(angle)
+            outer_y = sun_y - 24 * math.cos(angle)
+            inner_x = sun_x + 18 * math.sin(angle)
+            inner_y = sun_y - 18 * math.cos(angle)
+            draw.line([(int(inner_x), int(inner_y)), (int(outer_x), int(outer_y))], fill=YELLOW, width=2)
         
         draw.text((sun_x + 25, sun_y - 10), f"↑ {sunrise_str}", font=main_font, fill=BLACK)
         draw.text((sun_x + 25, sun_y + 10), f"↓ {sunset_str}", font=main_font, fill=BLACK)
@@ -1738,21 +1739,6 @@ else
     echo "Ellenőrizd a naplót további részletekért: ~/epaper_init.log"
 fi
 
-# OpenWeatherMap API kulcs beállítása
-echo ""
-echo "Az időjárás információk megjelenítéséhez OpenWeatherMap API kulcs szükséges."
-echo "Ha szeretnéd beállítani, regisztrálj a https://home.openweathermap.org/users/sign_up oldalon."
-read -p "Van OpenWeatherMap API kulcsod, amit szeretnél most beállítani? (y/n): " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    read -p "Add meg az API kulcsot: " api_key
-    sed -i "s/OPENWEATHERMAP_API_KEY = \"\"/OPENWEATHERMAP_API_KEY = \"$api_key\"/" "$PROJECT_DIR/config.py"
-    echo "API kulcs beállítva. A naptár újraindítása..."
-    sudo systemctl restart epaper-calendar.service
-else
-    echo "Az API kulcs beállítása kihagyva. Bármikor beállíthatod később a $PROJECT_DIR/config.py fájlban."
-fi
-
 # Összegzés
 echo "========================================================================"
 echo "Telepítés kész!"
@@ -1760,9 +1746,6 @@ echo ""
 echo "A program két fő részből áll:"
 echo "1. initialize_display.py - A Waveshare könyvtárat használja a kijelző kezdeti beállításához"
 echo "2. calendar_display.py - Az önálló naptár program, amely szép megjelenítést és időjárási adatokat tartalmaz"
-echo ""
-echo "Konfigurációs beállítások:"
-echo "$PROJECT_DIR/config.py - Itt állíthatod be a megjelenítési opciókat és az API kulcsot"
 echo ""
 echo "Ha az SPI interfész most lett engedélyezve, újraindítás szükséges."
 echo ""
