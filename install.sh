@@ -59,7 +59,7 @@ python3 -m venv "$VENV_DIR"
 source "$VENV_DIR/bin/activate"
 
 pip install --upgrade pip
-pip install pillow numpy feedparser holidays astral==3.* skyfield skyfield-data pytz :contentReference[oaicite:1]{index=1}
+pip install pillow numpy feedparser holidays astral==3.* skyfield skyfield-data pytz # :contentReference[oaicite:1]{index=1}
 
 # --- Python alkalmazás fájl ------------------------------
 cat > "$APP_DIR/calendar_display.py" << 'PY'
