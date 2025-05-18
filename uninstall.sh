@@ -1,19 +1,30 @@
-#!/usr/bin/env bash
-# Eltávolító – minden fájlt és szolgáltatást töröl
-set -euo pipefail
-APP_DIR="/opt/calendar_display"
-SERVICE_NAME="calendar_display"
+#!/bin/bash
 
-if [[ $EUID -ne 0 ]]; then
-  echo "Futtasd sudo-val!"
-  exit 1
+# E-Paper Calendar Display Uninstaller
+
+echo "======================================================"
+echo "E-Paper Calendar Display Uninstaller"
+echo "======================================================"
+
+# Aktuális felhasználó és könyvtár
+CURRENT_USER=$(whoami)
+PROJECT_DIR="/home/$CURRENT_USER/epaper_calendar"
+
+# Szolgáltatás leállítása és eltávolítása
+echo "Szolgáltatás leállítása és eltávolítása..."
+sudo systemctl stop epaper-calendar.service
+sudo systemctl disable epaper-calendar.service
+sudo rm -f /etc/systemd/system/epaper-calendar.service
+sudo systemctl daemon-reload
+
+# Kijelző törlése
+echo "Kijelző törlése..."
+if [ -f "$PROJECT_DIR/epd_driver.py" ]; then
+    python3 "$PROJECT_DIR/epd_driver.py" clear
 fi
 
-systemctl disable --now ${SERVICE_NAME}.timer || true
-systemctl disable --now ${SERVICE_NAME}.service || true
-rm -f /etc/systemd/system/${SERVICE_NAME}.service
-rm -f /etc/systemd/system/${SERVICE_NAME}.timer
-systemctl daemon-reload
+# Könyvtárak eltávolítása
+echo "Könyvtár eltávolítása: $PROJECT_DIR"
+rm -rf "$PROJECT_DIR"
 
-rm -rf "$APP_DIR"
-echo "Eltávolítás kész."
+echo "Eltávolítás kész!"
