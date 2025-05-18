@@ -259,7 +259,7 @@ LATITUDE = 46.0727
 LONGITUDE = 18.2323
 TIMEZONE = "Europe/Budapest"
 
-# RSS hírforrás URL-je
+# RSS hírforrás URL-je (nem használjuk a megjelenítésben)
 RSS_URL = "https://telex.hu/rss"
 
 # Kijelző frissítési gyakorisága (percben)
@@ -267,32 +267,48 @@ REFRESH_INTERVAL = 10
 
 # Megjelenítési beállítások
 SHOW_WEATHER = True        # Időjárás megjelenítése
-SHOW_RSS_NEWS = True       # RSS hírek megjelenítése
+SHOW_RSS_NEWS = False      # RSS hírek megjelenítése kikapcsolva
 SHOW_METEORS = True        # Meteorrajok megjelenítése
 SHOW_MOON_PHASE = True     # Holdfázis megjelenítése
 
-# Színek
-HEADER_COLOR = (70, 130, 180)   # Fejléc kék
-ACCENT_COLOR = (0, 120, 215)    # Kiemelő szín
-LIGHT_BG = (235, 245, 255)      # Világos háttér
-DARK_BG = (25, 55, 90)          # Sötét háttér
-PANEL_BG = (255, 255, 255)      # Panel háttér
+# Színek - Erősebb, élénkebb színek a 7-színű kijelzőhöz
+# Alapszínek
+BLACK = (0, 0, 0)           # Fekete
+WHITE = (255, 255, 255)     # Fehér 
+RED = (255, 0, 0)           # Piros
+GREEN = (0, 255, 0)         # Zöld
+BLUE = (0, 0, 255)          # Kék
+YELLOW = (255, 255, 0)      # Sárga
+ORANGE = (255, 128, 0)      # Narancs
+
+# Téma színek
+HEADER_COLOR = (0, 0, 200)    # Fejléc sötétkék
+HEADER_TEXT = WHITE          # Fejléc szöveg színe
+ACCENT_COLOR = (0, 120, 215) # Kiemelő szín
+LIGHT_BG = (255, 255, 255)   # Fehér háttér a kontraszthoz
+PANEL_BG = WHITE             # Panel háttér
+
+# Szöveg színek
+DATE_COLOR = WHITE           # Dátum színe
+HOLIDAY_COLOR = RED          # Ünnepnap színe 
+TITLE_COLOR = BLUE           # Címsorok színe
+INFO_TEXT = BLACK            # Normál szöveg
+TEMP_COLOR = BLUE            # Hőmérséklet szín
 EOL
 
-# Önálló naptár program létrehozása - Szebb designnal és időjárás információkkal
-# MATH MODUL IMPORTÁLVA A HIBA ELKERÜLÉSE VÉGETT
+# Önálló naptár program létrehozása - Új, továbbfejlesztett verzió
 echo "Önálló naptár program létrehozása..."
 cat > "$PROJECT_DIR/calendar_display.py" << 'EOL'
 #!/usr/bin/env python3
 # -*- coding:utf-8 -*-
 
-# Továbbfejlesztett Naptár Megjelenítő Program
-# Szebb design és időjárás információk
+# Továbbfejlesztett Naptár Megjelenítő Program v2.0
+# Módosított, szebb design nagyobb dátumkijelzéssel és jobb napkelte/holdkelte adatokkal
 
 import os
 import sys
 import time
-import math  # MATH MODUL IMPORTÁLVA
+import math
 import datetime
 import traceback
 import logging
@@ -318,14 +334,32 @@ except ImportError:
     RSS_URL = "https://telex.hu/rss"
     REFRESH_INTERVAL = 10
     SHOW_WEATHER = True
-    SHOW_RSS_NEWS = True
+    SHOW_RSS_NEWS = False   # RSS hírek kikapcsolva az új verzióban
     SHOW_METEORS = True
     SHOW_MOON_PHASE = True
-    HEADER_COLOR = (70, 130, 180)
-    ACCENT_COLOR = (0, 120, 215)
-    LIGHT_BG = (235, 245, 255)
-    DARK_BG = (25, 55, 90)
-    PANEL_BG = (255, 255, 255)
+    
+    # Alapszínek
+    BLACK = (0, 0, 0)           # Fekete
+    WHITE = (255, 255, 255)     # Fehér 
+    RED = (255, 0, 0)           # Piros
+    GREEN = (0, 255, 0)         # Zöld
+    BLUE = (0, 0, 255)          # Kék
+    YELLOW = (255, 255, 0)      # Sárga
+    ORANGE = (255, 128, 0)      # Narancs
+
+    # Téma színek
+    HEADER_COLOR = (0, 0, 200)  # Fejléc sötétkék
+    HEADER_TEXT = WHITE         # Fejléc szöveg színe
+    ACCENT_COLOR = (0, 100, 255) # Kiemelő szín
+    LIGHT_BG = (255, 255, 255)  # Fehér háttér a kontraszthoz
+    PANEL_BG = WHITE            # Panel háttér
+    
+    # Szöveg színek
+    DATE_COLOR = WHITE          # Dátum színe
+    HOLIDAY_COLOR = RED         # Ünnepnap színe 
+    TITLE_COLOR = BLUE          # Címsorok színe
+    INFO_TEXT = BLACK           # Normál szöveg
+    TEMP_COLOR = BLUE           # Hőmérséklet szín
 
 # Naplózás beállítása
 logging.basicConfig(
@@ -436,17 +470,6 @@ def get_moon_phase_description(percent):
 WIDTH = 640
 HEIGHT = 400
 
-# Színkódok
-BLACK = (0, 0, 0)
-WHITE = (255, 255, 255)
-GREEN = (0, 170, 0)
-BLUE = (0, 100, 200)
-RED = (200, 0, 0)
-YELLOW = (255, 180, 0)
-ORANGE = (255, 120, 0)
-GRAY = (100, 100, 100)
-LIGHT_GRAY = (200, 200, 200)
-
 # Magyar ünnepnapok és jeles napok (fix dátumok)
 FIXED_HOLIDAYS = {
     (1, 1): ("Újév", RED),
@@ -470,6 +493,7 @@ NOTABLE_DAYS = {
     (4, 22): ("A Föld napja", GREEN),
     (5, 8): ("A vöröskereszt világnapja", RED),
     (5, 10): ("Madarak és fák napja", GREEN),
+    (5, 18): ("Múzeumi világnap", BLUE),  # Példa a mai napra
     (5, 31): ("Nemdohányzó világnap", BLUE),
     (6, 5): ("Környezetvédelmi világnap", GREEN),
     (7, 1): ("Köztisztviselők napja", BLUE),
@@ -961,8 +985,11 @@ def format_time(dt):
         return "Nem kel/nyugszik"
     return dt.strftime("%H:%M")
 
-# RSS feed lekérése
+# RSS feed lekérése (ha szükséges)
 def get_rss_feed():
+    if not SHOW_RSS_NEWS:
+        return []
+        
     try:
         logger.info("RSS hírcsatorna lekérése a Telex.hu-ról...")
         feed = feedparser.parse(RSS_URL)
@@ -1183,7 +1210,7 @@ def load_weather_icon(icon_code):
         logger.error(f"Hiba az időjárás ikon betöltésekor: {e}")
         return None
 
-# Naptár információk megjelenítése
+# Naptár információk megjelenítése - Új design
 def update_display():
     epd = None
     try:
@@ -1230,10 +1257,10 @@ def update_display():
             regular_font_path = "/usr/share/fonts/truetype/freefont/FreeSans.ttf"
         
         if os.path.exists(font_path) and os.path.exists(regular_font_path):
-            header_font = ImageFont.truetype(font_path, 24)
+            header_font = ImageFont.truetype(font_path, 28)      # Nagyobb fejléc betű
             title_font = ImageFont.truetype(font_path, 22)
-            large_font = ImageFont.truetype(font_path, 32)
-            date_font = ImageFont.truetype(font_path, 20)
+            large_font = ImageFont.truetype(font_path, 40)       # Nagyobb dátum és idő
+            date_font = ImageFont.truetype(font_path, 26)        # Nagyobb dátum
             main_font = ImageFont.truetype(regular_font_path, 18)
             small_font = ImageFont.truetype(regular_font_path, 14)
         else:
@@ -1246,29 +1273,19 @@ def update_display():
             small_font = header_font
         
         # Üres kép létrehozása
-        image = Image.new('RGB', (width, height), LIGHT_BG)
+        image = Image.new('RGB', (width, height), WHITE)
         draw = ImageDraw.Draw(image)
         
         # Ellenőrizzük, hogy a mai nap speciális nap-e
         special_day = check_special_day(now)
         is_holiday = False
         special_day_color = BLACK
+        special_day_name = None
         
         if special_day:
             special_day_name, color_code = special_day
             is_holiday = (color_code == RED)
-            
-            # Színkód konvertálása RGB-re
-            if color_code == RED:
-                special_day_color = RED
-            elif color_code == BLUE:
-                special_day_color = BLUE
-            elif color_code == GREEN:
-                special_day_color = GREEN
-            elif color_code == ORANGE:
-                special_day_color = ORANGE
-            elif color_code == YELLOW:
-                special_day_color = YELLOW
+            special_day_color = color_code  # Már RGB-ben vannak a konstansok
         
         # Névnap lekérése
         nameday = get_nameday(now)
@@ -1307,38 +1324,35 @@ def update_display():
         # Meteorrajok ellenőrzése
         meteor_showers = check_meteor_showers(now)
         
-        # RSS hírfolyam lekérése
-        rss_entries = get_rss_feed() if SHOW_RSS_NEWS else []
-        
         # Időjárás adatok lekérése
         weather_data = get_weather_data() if SHOW_WEATHER else None
         
         # Képernyő elemek rajzolása
         # ------- FEJLÉC --------
-        # Fejléc háttér
-        draw.rectangle([(0, 0), (width, 55)], fill=HEADER_COLOR)
+        # Fejléc háttér - élénkebb kék
+        draw.rectangle([(0, 0), (width, 60)], fill=HEADER_COLOR)
         
-        # Dátum kiírása
-        if is_holiday:
-            date_color = RED
-        else:
-            date_color = WHITE
+        # Nap neve és dátum - nagyobb betűkkel 
+        day_color = HOLIDAY_COLOR if is_holiday else DATE_COLOR
+        draw.text((20, 8), hu_day, font=header_font, fill=DATE_COLOR)
+        draw.text((20, 8 + header_font.getbbox(hu_day)[3] + 2), hu_date, font=date_font, fill=day_color)
         
-        # Nap neve és dátum
-        draw.text((20, 5), hu_day, font=date_font, fill=WHITE)
-        draw.text((20, 28), hu_date, font=date_font, fill=date_color)
+        # Idő kiírása nagy méretben - most "Frissítve: " előtaggal
+        draw.text((width - 200, 15), f"Frissítve: {time_str}", font=date_font, fill=DATE_COLOR)
         
-        # Idő kiírása nagy méretben
-        draw.text((width - 120, 10), time_str, font=large_font, fill=WHITE)
-        
+        # Ha van speciális nap, írjuk ki a dátum alá
+        if special_day_name:
+            draw.text((20, 62), special_day_name, font=main_font, fill=special_day_color)
+            
         # ------- PANELEK --------
         # Panel méretei
         panel_padding = 10
         panel_spacing = 15
         col_width = (width - 3*panel_padding) // 2
         
-        # Bal oldali oszlop y pozíciója
-        left_y = 65
+        # Kezdeti y pozíciók
+        left_y = 90  # Kissé lejjebb kezdünk, hogy legyen hely a speciális napnak
+        right_y = 90
         
         # IDŐJÁRÁS PANEL (ha elérhető)
         if weather_data is not None:
@@ -1354,7 +1368,7 @@ def update_display():
                                   width=2)
             
             # Panel címsor
-            draw.text((panel_padding + 15, left_y + 10), "Időjárás", font=title_font, fill=ACCENT_COLOR)
+            draw.text((panel_padding + 15, left_y + 10), "Időjárás", font=title_font, fill=TITLE_COLOR)
             
             # Időjárás adatok
             temp = round(weather_data["temperature"])
@@ -1368,19 +1382,19 @@ def update_display():
                 # Ikon elhelyezése
                 image.paste(weather_icon, (panel_padding + 15, left_y + 40), weather_icon.convert('RGBA'))
             
-            # Hőmérséklet kiírása
-            draw.text((panel_padding + 85, left_y + 45), f"{temp}°C", font=large_font, fill=BLACK)
-            draw.text((panel_padding + 85, left_y + 80), desc, font=main_font, fill=BLUE)
+            # Hőmérséklet kiírása - élénkebb kékkel
+            draw.text((panel_padding + 85, left_y + 45), f"{temp}°C", font=large_font, fill=TEMP_COLOR)
+            draw.text((panel_padding + 85, left_y + 90), desc, font=main_font, fill=BLUE)
             
             # További időjárási adatok
             draw.text((panel_padding + 15, left_y + 110), 
                      f"Szél: {round(weather_data['wind_speed'])} km/h  |  Páratartalom: {weather_data['humidity']}%", 
-                     font=small_font, fill=GRAY)
+                     font=small_font, fill=BLACK)
             
             left_y += weather_panel_height + panel_spacing
         
         # NAPI INFORMÁCIÓK PANEL
-        info_panel_height = 120
+        info_panel_height = 105
         
         # Panel keret
         draw_rounded_rectangle(draw, 
@@ -1392,85 +1406,12 @@ def update_display():
                               width=2)
         
         # Panel címsor
-        draw.text((panel_padding + 15, left_y + 10), "Napi információk", font=title_font, fill=ACCENT_COLOR)
-        
-        # Speciális nap kiírása, ha van
-        info_y = left_y + 45
-        if special_day:
-            special_day_name, _ = special_day
-            draw.text((panel_padding + 20, info_y), f"Mai nap: {special_day_name}", font=main_font, fill=special_day_color)
-            info_y += 30
+        draw.text((panel_padding + 15, left_y + 10), "Napi információk", font=title_font, fill=TITLE_COLOR)
         
         # Névnap kiírása
-        draw.text((panel_padding + 20, info_y), f"Névnap: {nameday}", font=main_font, fill=BLUE)
+        draw.text((panel_padding + 20, left_y + 45), f"Névnap: {nameday}", font=main_font, fill=BLUE)
         
         left_y += info_panel_height + panel_spacing
-        
-        # NAPKELTE/NAPNYUGTA PANEL
-        sun_panel_height = 130
-        
-        # Panel keret
-        draw_rounded_rectangle(draw, 
-                              (panel_padding, left_y, 
-                               panel_padding + col_width, left_y + sun_panel_height), 
-                              corner_radius=10,
-                              fill=PANEL_BG,
-                              outline=HEADER_COLOR,
-                              width=2)
-        
-        # Panel címsor
-        draw.text((panel_padding + 15, left_y + 10), "Nap és Hold", font=title_font, fill=ACCENT_COLOR)
-        
-        # Napkelte és napnyugta információk
-        sunrise_str = format_time(sunrise)
-        sunset_str = format_time(sunset)
-        
-        # Rajzolj napot és holdat grafikusan
-        # Nap
-        sun_x = panel_padding + 50
-        sun_y = left_y + 50
-        draw.ellipse((sun_x-15, sun_y-15, sun_x+15, sun_y+15), fill=YELLOW, outline=ORANGE, width=2)
-        
-        # Sugarak a nap körül
-        for i in range(8):
-            angle = i * 45 * math.pi / 180  # Radián
-            outer_x = sun_x + 24 * math.sin(angle)
-            outer_y = sun_y - 24 * math.cos(angle)
-            inner_x = sun_x + 18 * math.sin(angle)
-            inner_y = sun_y - 18 * math.cos(angle)
-            draw.line([(int(inner_x), int(inner_y)), (int(outer_x), int(outer_y))], fill=YELLOW, width=2)
-        
-        draw.text((sun_x + 25, sun_y - 10), f"↑ {sunrise_str}", font=main_font, fill=BLACK)
-        draw.text((sun_x + 25, sun_y + 10), f"↓ {sunset_str}", font=main_font, fill=BLACK)
-        
-        # Hold
-        moon_y = left_y + 95
-        draw.ellipse((sun_x-12, moon_y-12, sun_x+12, moon_y+12), fill=(220, 220, 220), outline=(180, 180, 180), width=2)
-        
-        # Holdfázis árnyékolás
-        if moon_phase_percent < 50:
-            # Növekvő hold - jobb oldal világos
-            shade_width = int(24 * (50 - moon_phase_percent) / 50)
-            draw.ellipse((sun_x-12, moon_y-12, sun_x+12, moon_y+12), fill=(220, 220, 220))
-            draw.rectangle((sun_x-12, moon_y-12, sun_x-12+shade_width, moon_y+12), fill=(100, 100, 100))
-            draw.ellipse((sun_x-12, moon_y-12, sun_x+12, moon_y+12), outline=(180, 180, 180), width=1)
-        else:
-            # Fogyó hold - bal oldal világos
-            shade_width = int(24 * (moon_phase_percent - 50) / 50)
-            draw.ellipse((sun_x-12, moon_y-12, sun_x+12, moon_y+12), fill=(220, 220, 220))
-            draw.rectangle((sun_x+12-shade_width, moon_y-12, sun_x+12, moon_y+12), fill=(100, 100, 100))
-            draw.ellipse((sun_x-12, moon_y-12, sun_x+12, moon_y+12), outline=(180, 180, 180), width=1)
-        
-        # Holdkelte és holdnyugta információk
-        moonrise_str = format_time(moonrise_val)
-        moonset_str = format_time(moonset_val)
-        
-        draw.text((sun_x + 25, moon_y - 10), f"↑ {moonrise_str}", font=main_font, fill=BLACK)
-        draw.text((sun_x + 25, moon_y + 10), f"↓ {moonset_str}", font=main_font, fill=BLACK)
-        
-        # Jobb oldali oszlop y pozíciója
-        right_x = panel_padding * 2 + col_width
-        right_y = 65
         
         # METEORRAJ PANEL
         if SHOW_METEORS and meteor_showers:
@@ -1478,7 +1419,7 @@ def update_display():
             
             # Panel keret
             draw_rounded_rectangle(draw, 
-                                  (right_x, right_y, 
+                                  (right_x := panel_padding * 2 + col_width, right_y, 
                                    right_x + col_width, right_y + meteor_panel_height), 
                                   corner_radius=10,
                                   fill=PANEL_BG,
@@ -1486,9 +1427,9 @@ def update_display():
                                   width=2)
             
             # Panel címsor
-            draw.text((right_x + 15, right_y + 10), "Aktív meteorrajok", font=title_font, fill=ACCENT_COLOR)
+            draw.text((right_x + 15, right_y + 10), "Aktív meteorrajok", font=title_font, fill=TITLE_COLOR)
             
-            # Meteor információk kiírása
+            # Meteor információk kiírása élénkebb színnel
             meteor_y = right_y + 45
             for shower in meteor_showers:
                 name = shower["name"]
@@ -1497,67 +1438,80 @@ def update_display():
                 text = f"• {name}"
                 if is_peak:
                     text += " (csúcs)"
-                
-                draw.text((right_x + 20, meteor_y), text, font=main_font, fill=(100, 0, 150))
+                    draw.text((right_x + 20, meteor_y), text, font=main_font, fill=RED)
+                else:
+                    draw.text((right_x + 20, meteor_y), text, font=main_font, fill=BLUE)
                 meteor_y += 25
             
             right_y += meteor_panel_height + panel_spacing
         
-        # RSS HÍREK PANEL
-        if SHOW_RSS_NEWS and rss_entries:
-            # Számítsuk ki a fennmaradó helyet
-            available_height = height - right_y - 20
-            
-            # Panel keret
-            draw_rounded_rectangle(draw, 
-                                  (right_x, right_y, 
-                                   right_x + col_width, height - 20), 
-                                  corner_radius=10,
-                                  fill=PANEL_BG,
-                                  outline=HEADER_COLOR,
-                                  width=2)
-            
-            # Panel címsor
-            draw.text((right_x + 15, right_y + 10), "Hírek (Telex.hu)", font=title_font, fill=ACCENT_COLOR)
-            
-            # RSS hírek kiírása
-            news_y = right_y + 45
-            for i, entry in enumerate(rss_entries):
-                # Szöveg hosszának korlátozása
-                max_lines = 2
-                area = (right_x + 15, news_y, right_x + col_width - 15, news_y + 60)
-                end_y = draw_text_in_area(draw, entry, area, small_font, BLACK, max_lines=max_lines)
-                news_y = end_y + 10
-                
-                # Vonal az egyes hírek között
-                if i < len(rss_entries) - 1:
-                    draw.line([(right_x + 40, news_y - 5), (right_x + col_width - 40, news_y - 5)], 
-                             fill=LIGHT_GRAY, width=1)
+        # NAP ÉS HOLD PANEL - Nagyobb, részletesebb
+        sun_panel_height = height - right_y - 20  # Maradék képernyő terület
         
-        # HOLDFÁZIS PANEL (ha nincs a RSS panel mellett)
-        elif SHOW_MOON_PHASE and not meteor_showers:
-            moon_panel_height = 100
-            
-            # Panel keret
-            draw_rounded_rectangle(draw, 
-                                  (right_x, right_y, 
-                                   right_x + col_width, right_y + moon_panel_height), 
-                                  corner_radius=10,
-                                  fill=PANEL_BG,
-                                  outline=HEADER_COLOR,
-                                  width=2)
-            
-            # Panel címsor
-            draw.text((right_x + 15, right_y + 10), "Holdfázis", font=title_font, fill=ACCENT_COLOR)
-            
-            # Hold fázis kiírása
-            draw.text((right_x + 20, right_y + 50), 
-                     f"Hold fázis: {moon_phase_percent}% ({moon_phase_text})", 
-                     font=main_font, fill=BLUE)
+        # Panel keret
+        draw_rounded_rectangle(draw, 
+                              (right_x := panel_padding * 2 + col_width, right_y, 
+                               right_x + col_width, right_y + sun_panel_height), 
+                              corner_radius=10,
+                              fill=PANEL_BG,
+                              outline=HEADER_COLOR,
+                              width=2)
         
-        # Utolsó frissítés ideje legalul
-        updated_str = f"Frissítve: {now.strftime('%Y-%m-%d %H:%M')}"
-        draw.text((width - 150, height - 15), updated_str, font=small_font, fill=GRAY)
+        # Panel címsor
+        draw.text((right_x + 15, right_y + 10), "Nap és Hold", font=title_font, fill=TITLE_COLOR)
+        
+        # Napkelte és napnyugta információk
+        sunrise_str = format_time(sunrise)
+        sunset_str = format_time(sunset)
+        
+        # Nap és hold vizuális megjelenítése
+        sun_x = right_x + 50
+        sun_y = right_y + 60
+        
+        # Nap rajz - élénkebb színekkel
+        draw.ellipse((sun_x-15, sun_y-15, sun_x+15, sun_y+15), fill=YELLOW, outline=ORANGE, width=2)
+        
+        # Sugarak a nap körül
+        for i in range(8):
+            angle = i * 45 * math.pi / 180
+            outer_x = sun_x + 24 * math.sin(angle)
+            outer_y = sun_y - 24 * math.cos(angle)
+            inner_x = sun_x + 18 * math.sin(angle)
+            inner_y = sun_y - 18 * math.cos(angle)
+            draw.line([(int(inner_x), int(inner_y)), (int(outer_x), int(outer_y))], fill=ORANGE, width=2)
+        
+        draw.text((sun_x + 25, sun_y - 10), f"↑ {sunrise_str}", font=main_font, fill=BLACK)
+        draw.text((sun_x + 25, sun_y + 10), f"↓ {sunset_str}", font=main_font, fill=BLACK)
+        
+        # Hold vizualizáció
+        moon_y = right_y + 120
+        
+        # Hold fázis szöveges leírása
+        draw.text((right_x + 15, moon_y - 30), f"Holdfázis: {moon_phase_text} ({moon_phase_percent}%)", font=small_font, fill=BLUE)
+        
+        # Hold rajz
+        draw.ellipse((sun_x-12, moon_y-12, sun_x+12, moon_y+12), fill=(220, 220, 220), outline=(100, 100, 100), width=2)
+        
+        # Holdfázis árnyékolás 
+        if moon_phase_percent < 50:
+            # Növekvő hold - jobb oldal világos
+            shade_width = int(24 * (50 - moon_phase_percent) / 50)
+            draw.ellipse((sun_x-12, moon_y-12, sun_x+12, moon_y+12), fill=(220, 220, 220))
+            draw.rectangle((sun_x-12, moon_y-12, sun_x-12+shade_width, moon_y+12), fill=(50, 50, 50))
+            draw.ellipse((sun_x-12, moon_y-12, sun_x+12, moon_y+12), outline=(100, 100, 100), width=1)
+        else:
+            # Fogyó hold - bal oldal világos
+            shade_width = int(24 * (moon_phase_percent - 50) / 50)
+            draw.ellipse((sun_x-12, moon_y-12, sun_x+12, moon_y+12), fill=(220, 220, 220))
+            draw.rectangle((sun_x+12-shade_width, moon_y-12, sun_x+12, moon_y+12), fill=(50, 50, 50))
+            draw.ellipse((sun_x-12, moon_y-12, sun_x+12, moon_y+12), outline=(100, 100, 100), width=1)
+        
+        # Holdkelte és holdnyugta információk
+        moonrise_str = format_time(moonrise_val)
+        moonset_str = format_time(moonset_val)
+        
+        draw.text((sun_x + 25, moon_y - 10), f"↑ {moonrise_str}", font=main_font, fill=BLACK)
+        draw.text((sun_x + 25, moon_y + 10), f"↓ {moonset_str}", font=main_font, fill=BLACK)
         
         # Képernyőkép mentése (debug)
         image_path = os.path.expanduser("~/epaper_calendar_latest.png")
@@ -1745,7 +1699,7 @@ echo "Telepítés kész!"
 echo ""
 echo "A program két fő részből áll:"
 echo "1. initialize_display.py - A Waveshare könyvtárat használja a kijelző kezdeti beállításához"
-echo "2. calendar_display.py - Az önálló naptár program, amely szép megjelenítést és időjárási adatokat tartalmaz"
+echo "2. calendar_display.py - Az önálló naptár program élénkebb színekkel és jobb elrendezéssel"
 echo ""
 echo "Ha az SPI interfész most lett engedélyezve, újraindítás szükséges."
 echo ""
