@@ -32,7 +32,7 @@ sudo apt-get install -y python3-requests python3-feedparser python3-dateutil
 
 # Astral és más Python könyvtárak telepítése
 echo "Python könyvtárak telepítése..."
-pip3 install --break-system-packages astral
+pip3 install --break-system-packages astral python-dateutil
 
 # SPI engedélyezése
 echo "SPI interfész ellenőrzése..."
@@ -66,6 +66,7 @@ import os
 import sys
 import time
 import logging
+import traceback
 from PIL import Image, ImageDraw, ImageFont
 
 # Naplózás beállítása
@@ -209,7 +210,7 @@ EOL
 
 chmod +x "$PROJECT_DIR/initialize_display.py"
 
-# Önálló naptár program létrehozása
+# Önálló naptár program létrehozása - JAVÍTOTT ASTRAL IMPORTOKKAL
 echo "Önálló naptár program létrehozása..."
 cat > "$PROJECT_DIR/calendar_display.py" << 'EOL'
 #!/usr/bin/env python3
@@ -245,12 +246,96 @@ logger = logging.getLogger(__name__)
 try:
     import requests
     from astral import LocationInfo
-    from astral.sun import sun
-    from astral.moon import moon_phase, moonrise, moonset
+    
+    # Astral importok kezelése különböző verziókhoz
+    try:
+        # Először próbáljuk az Astral 2.2+ verziót
+        from astral.sun import sun
+        try:
+            # Astral 2.2 moon API
+            from astral.moon import phase as moon_phase_func
+            def moon_phase(date):
+                return moon_phase_func(date)
+                
+            from astral.moon import moonrise, moonset
+            logger.info("Astral 2.2+ importálva")
+        except ImportError:
+            # Régebbi Astral 2.x
+            from astral import moon
+            def moon_phase(date):
+                return moon.phase(date)
+                
+            def moonrise(observer, date):
+                return moon.moonrise(observer, date)
+                
+            def moonset(observer, date):
+                return moon.moonset(observer, date)
+            logger.info("Astral 2.x importálva")
+    except ImportError:
+        # Régi Astral 1.x
+        try:
+            from astral import Astral
+            a = Astral()
+            def sun(observer, date=None):
+                city = a['London']  # Ideiglenes város
+                city.observer = observer
+                return city.sun(date=date)
+                
+            def moon_phase(date):
+                return a.moon_phase(date)
+                
+            def moonrise(observer, date):
+                city = a['London']
+                city.observer = observer
+                return a.moon_rise(city.observer, date)
+                
+            def moonset(observer, date):
+                city = a['London']
+                city.observer = observer
+                return a.moon_set(city.observer, date)
+            logger.info("Astral 1.x importálva")
+        except Exception as e:
+            # Fallback dummy függvények
+            logger.error(f"Nem sikerült importálni az Astral függvényeket: {e}")
+            def sun(observer, date=None):
+                now = datetime.datetime.now()
+                sunrise = datetime.datetime(now.year, now.month, now.day, 6, 0, 0)
+                sunset = datetime.datetime(now.year, now.month, now.day, 18, 0, 0)
+                return {"sunrise": sunrise, "sunset": sunset}
+                
+            def moon_phase(date):
+                return 0
+                
+            def moonrise(observer, date):
+                return None
+                
+            def moonset(observer, date):
+                return None
 except ImportError as e:
     logger.error(f"Hiányzó modul: {e}")
     logger.error("Próbáld meg telepíteni: pip3 install --break-system-packages astral requests")
     sys.exit(1)
+
+# Segédfüggvény a holdfázisok leírásához
+def get_moon_phase_description(percent):
+    if percent < 2:
+        return "Újhold"
+    elif percent < 23:
+        return "Növekvő sarló"
+    elif percent < 27:
+        return "Első negyed"
+    elif percent < 48:
+        return "Növekvő hold"
+    elif percent < 52:
+        return "Telihold"
+    elif percent < 73:
+        return "Fogyó hold"
+    elif percent < 77:
+        return "Utolsó negyed"
+    elif percent < 98:
+        return "Fogyó sarló"
+    else:
+        return "Újhold"
 
 # Konstansok
 WIDTH = 640
@@ -1034,8 +1119,13 @@ def update_display():
         sunset = s["sunset"].astimezone(datetime.timezone.utc).astimezone()
         
         # Hold információk
-        moon_phase_value = moon_phase(now)
-        moon_phase_percent = round(moon_phase_value * 100 / 29.53)
+        try:
+            moon_phase_value = moon_phase(now)
+            moon_phase_percent = round(moon_phase_value * 100 / 29.53)
+        except:
+            # Fallback
+            moon_phase_percent = 0
+        
         moon_phase_text = get_moon_phase_description(moon_phase_percent)
         
         try:
@@ -1224,6 +1314,15 @@ echo "======================================================"
 CURRENT_USER=$(whoami)
 PROJECT_DIR="/home/$CURRENT_USER/epaper_calendar"
 
+# Megerősítés kérése
+echo "Ez a script eltávolítja az E-Paper Calendar Display-t és minden kapcsolódó fájlt."
+read -p "Biztosan folytatni szeretnéd? (y/n): " -n 1 -r
+echo
+if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    echo "Eltávolítás megszakítva."
+    exit 0
+fi
+
 # Szolgáltatás leállítása és eltávolítása
 echo "Szolgáltatás leállítása és eltávolítása..."
 sudo systemctl stop epaper-calendar.service
@@ -1233,19 +1332,41 @@ sudo systemctl daemon-reload
 
 # Kísérlet a kijelző tisztítására mielőtt eltávolítjuk
 echo "Kijelző tisztítása..."
-cd "$PROJECT_DIR"
-python3 "$PROJECT_DIR/calendar_display.py" clear || true
+if [ -f "$PROJECT_DIR/initialize_display.py" ]; then
+    cd "$PROJECT_DIR"
+    python3 "$PROJECT_DIR/initialize_display.py" || true
+fi
 
 # Könyvtár eltávolítása
 echo "Könyvtár eltávolítása: $PROJECT_DIR"
 cd
-rm -rf "$PROJECT_DIR"
+if [ -d "$PROJECT_DIR" ]; then
+    rm -rf "$PROJECT_DIR"
+    echo "Könyvtár sikeresen törölve."
+else
+    echo "A könyvtár már nem létezik."
+fi
 
 # Naplófájlok törlése
 echo "Naplófájlok törlése..."
-rm -f ~/epaper_calendar.log ~/epaper_init.log ~/epaper_calendar_latest.png
+rm -f ~/epaper_init.log ~/epaper_calendar.log ~/epaper_calendar_latest.png
+echo "Naplófájlok törölve."
 
-echo "Eltávolítás kész!"
+# Python csomagok eltávolítása
+echo "Python csomagok eltávolítása..."
+pip3 uninstall -y astral
+
+echo "======================================================"
+echo "Eltávolítás sikeresen befejezve!"
+echo "A rendszert érdemes újraindítani a változtatások teljes érvényesítéséhez."
+read -p "Szeretnéd most újraindítani a rendszert? (y/n): " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    echo "Rendszer újraindítása..."
+    sudo reboot
+else
+    echo "Ne felejtsd el később újraindítani a rendszert."
+fi
 EOL
 
 chmod +x "$PROJECT_DIR/uninstall.sh"
