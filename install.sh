@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# E-Paper Calendar Display Installer
+# E-Paper Calendar Display Installer (JAVÍTOTT)
 # For Raspberry Pi Zero 2W with Waveshare 4.01 inch 7-color e-paper HAT
 
 echo "======================================================"
-echo "E-Paper Calendar Display Installer"
+echo "E-Paper Calendar Display Installer (JAVÍTOTT)"
 echo "Raspberry Pi Zero 2W + Waveshare 4.01 inch 7-color HAT"
 echo "======================================================"
 
@@ -25,13 +25,19 @@ chmod +x "$PROJECT_DIR"/*.py "$PROJECT_DIR"/*.sh
 # Alapvető csomagok telepítése
 echo "Alapvető függőségek telepítése..."
 sudo apt-get update
-sudo apt-get install -y python3-dev python3-pip
+sudo apt-get install -y python3-dev python3-pip python3-venv
 sudo apt-get install -y python3-pillow python3-rpi.gpio python3-spidev
 sudo apt-get install -y python3-feedparser python3-dateutil
 
-# Python függőségek telepítése
-echo "Python függőségek telepítése..."
-pip3 install astral requests
+# Virtuális környezet létrehozása
+echo "Python virtuális környezet létrehozása..."
+cd "$PROJECT_DIR"
+python3 -m venv venv
+source venv/bin/activate
+
+# Python függőségek telepítése a virtuális környezetbe
+echo "Python függőségek telepítése a virtuális környezetbe..."
+pip install astral requests
 
 # SPI engedélyezése
 echo "SPI interfész ellenőrzése..."
@@ -47,7 +53,7 @@ echo "Felhasználói jogosultságok beállítása..."
 sudo usermod -a -G spi,gpio,dialout "$CURRENT_USER"
 echo "Felhasználó hozzáadva a szükséges csoportokhoz"
 
-# Systemd szolgáltatás létrehozása
+# Systemd szolgáltatás létrehozása - most már a virtuális környezetet használja
 echo "Systemd szolgáltatás létrehozása..."
 sudo bash -c "cat > /etc/systemd/system/epaper-calendar.service" << EOL
 [Unit]
@@ -58,7 +64,7 @@ After=network.target
 Type=simple
 User=$CURRENT_USER
 WorkingDirectory=$PROJECT_DIR
-ExecStart=/usr/bin/python3 $PROJECT_DIR/calendar_display.py
+ExecStart=$PROJECT_DIR/venv/bin/python3 $PROJECT_DIR/calendar_display.py
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal
@@ -79,11 +85,15 @@ sudo systemctl enable epaper-calendar.service
 echo "========================================================================"
 echo "Telepítés kész!"
 echo ""
+echo "Létrehoztunk egy dedikált Python virtuális környezetet a"
+echo "függőségek kezeléséhez, így elkerülve az 'externally-managed-environment' hibát."
+echo ""
 echo "Ha most engedélyezted az SPI interfészt, újraindítás szükséges."
 echo "Újraindítás után a szolgáltatás automatikusan elindul."
 echo ""
-echo "Kézi teszteléshez futtasd:"
-echo "python3 $PROJECT_DIR/calendar_display.py"
+echo "Kézi teszteléshez aktiváld a virtuális környezetet:"
+echo "cd $PROJECT_DIR && source venv/bin/activate"
+echo "majd futtasd: python calendar_display.py"
 echo ""
 echo "Szolgáltatás kezelése:"
 echo "sudo systemctl start epaper-calendar.service"
