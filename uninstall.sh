@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# E-Paper Calendar Display Uninstaller
+# E-Paper Calendar Display Uninstaller (JAVÍTOTT)
 
 echo "======================================================"
-echo "E-Paper Calendar Display Uninstaller"
+echo "E-Paper Calendar Display Uninstaller (JAVÍTOTT)"
 echo "======================================================"
 
 # Aktuális felhasználó és könyvtár
@@ -20,7 +20,14 @@ sudo systemctl daemon-reload
 # Kijelző törlése
 echo "Kijelző törlése..."
 if [ -f "$PROJECT_DIR/epd_driver.py" ]; then
-    python3 "$PROJECT_DIR/epd_driver.py" clear
+    # Használjuk a virtuális környezetet, ha létezik
+    if [ -d "$PROJECT_DIR/venv" ]; then
+        source "$PROJECT_DIR/venv/bin/activate"
+        python "$PROJECT_DIR/epd_driver.py" clear
+        deactivate
+    else
+        python3 "$PROJECT_DIR/epd_driver.py" clear
+    fi
 fi
 
 # Könyvtárak eltávolítása
